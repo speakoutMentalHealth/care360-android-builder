@@ -1,0 +1,34 @@
+name: Public runner availability (no private source)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/public-runner-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  runner-smoke:
+    name: Check runner, Java and disk capacity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Verify public Linux runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "This job tests GitHub Actions capacity only."
+          echo "No Care360 code, private repository, credentials, or patient data are accessed."
+          echo "OS: $(uname -s)"
+          echo "Architecture: $(uname -m)"
+          echo "Runner: ${RUNNER_OS}"
+          echo "Memory:"
+          free -h
+          echo "Disk:"
+          df -h /
+          echo "Java:"
+          java -version
+          echo "SMOKE TEST PASSED"
