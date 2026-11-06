@@ -1,0 +1,188 @@
+name: Care360 Patient CONNECTED staging debug - encrypted output
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: 'Exact reviewed Patient source commit SHA (40 lowercase hex characters)'
+        required: true
+        type: string
+        default: '8dd0abb5d29a65dbcfc8b9a0ce6fce5096058e94'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: care360-patient-connected-staging-build
+  cancel-in-progress: false
+
+jobs:
+  android-staging:
+    name: Build isolated CONNECTED Patient Android APK and encrypt it
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Validate source, encryption, and APPROVED staging prerequisites
+        id: validate
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          CARE360_SOURCE_READ_TOKEN: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
+          K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
+          K3_STAGING_API_URL: ${{ secrets.K3_STAGING_API_URL }}
+          K3_STAGING_ANDROID_FIREBASE_JSON_B64: ${{ secrets.K3_STAGING_ANDROID_FIREBASE_JSON_B64 }}
+          K3_APPROVED_STAGING_FIREBASE_PROJECT_ID: ${{ vars.K3_STAGING_FIREBASE_PROJECT_ID }}
+          K3_STAGING_API_VERIFIED: ${{ vars.K3_STAGING_API_VERIFIED }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Pin a complete reviewed source SHA."; exit 1; }
+          [[ -n "$CARE360_SOURCE_READ_TOKEN" ]] || { echo "::error::Configure read-only private Patient source token."; exit 1; }
+          [[ ${#K3_BUILD_OUTPUT_PASSWORD} -ge 32 ]] || { echo "::error::Configure strong 32+ character output password."; exit 1; }
+          [[ "$K3_STAGING_API_VERIFIED" == "true" ]] || { echo "::error::Staging API isolation must be independently verified, then set K3_STAGING_API_VERIFIED=true."; exit 1; }
+          [[ -n "$K3_STAGING_API_URL" && "$K3_STAGING_API_URL" == https://*/api/ ]] || { echo "::error::Configure HTTPS staging API URL ending /api/."; exit 1; }
+          [[ -n "$K3_STAGING_ANDROID_FIREBASE_JSON_B64" ]] || { echo "::error::Configure staging-only Android Firebase JSON (base64)."; exit 1; }
+          [[ -n "$K3_APPROVED_STAGING_FIREBASE_PROJECT_ID" ]] || { echo "::error::Set approved staging Firebase project ID repository variable."; exit 1; }
+          echo "Isolated staging prerequisites found; no configuration values printed."
+
+      - name: Checkout public build scripts
+        uses: actions/checkout@v4
+        with:
+          path: builder
+          persist-credentials: false
+
+      - name: Fetch exact Patient source commit without persisting token
+        uses: actions/checkout@v4
+        with:
+          repository: Care360Apps/k3-patient
+          ref: ${{ inputs.source_sha }}
+          token: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
+          fetch-depth: 1
+          persist-credentials: false
+          path: patient
+
+      - name: Validate pinned source and preflight before adding config
+        working-directory: patient
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          python3 tools/k3_preflight.py
+          python3 tools/k3_notification_preflight.py
+          echo "Private source version pinned and preflight passed."
+
+      - name: Free unused runner storage
+        shell: bash
+        run: |
+          set -euo pipefail
+          for target in /usr/share/dotnet /opt/ghc /usr/local/share/powershell; do
+            if [ -d "$target" ]; then sudo rm -rf -- "$target"; fi
+          done
+          df -h /
+
+      - name: Validate private source Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v6
+        with:
+          gradle-wrapper-jar-path: patient/android/gradle/wrapper/gradle-wrapper.jar
+
+      - name: Install JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Flutter 3.38.3
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.3'
+          channel: stable
+          cache: false
+
+      - name: Install artifact encryption dependency
+        shell: bash
+        run: python3 -m pip install --quiet --disable-pip-version-check --break-system-packages 'cryptography>=44,<48'
+
+      - name: Prepare real staging-only Firebase and API settings in runner temp
+        working-directory: patient
+        shell: bash
+        env:
+          K3_STAGING_API_URL: ${{ secrets.K3_STAGING_API_URL }}
+          FIREBASE_JSON_B64: ${{ secrets.K3_STAGING_ANDROID_FIREBASE_JSON_B64 }}
+          K3_APPROVED_STAGING_FIREBASE_PROJECT_ID: ${{ vars.K3_STAGING_FIREBASE_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/k3-private"
+          (
+            set -euo pipefail
+            printf '%s' "$FIREBASE_JSON_B64" | base64 --decode > android/app/google-services.json
+            chmod 600 android/app/google-services.json
+            python3 tools/k3_android_staging_identity.py --firebase android/app/google-services.json
+            python3 tools/k3_staging_config.py --platform android --firebase android/app/google-services.json --out "$RUNNER_TEMP/k3-private/k3_staging.json" --android-package com.cnu.patient.k3staging
+            python3 -c "import json,os; from urllib.parse import urlsplit; p=os.path.join(os.environ['RUNNER_TEMP'],'k3-private/k3_staging.json'); d=json.load(open(p)); assert d['K3_API_BASE_URL'].startswith('https://'); assert d['K3_FIREBASE_PROJECT_ID'] == os.environ['K3_APPROVED_STAGING_FIREBASE_PROJECT_ID']; assert d['K3_FIREBASE_PROJECT_ID'] != 'k3-synthetic-build-invalid'; print('Explicit staging project and endpoint checked')"
+          ) > "$RUNNER_TEMP/k3-private/build-log.txt" 2>&1 || {
+            echo "::error::Staging identity or Firebase configuration failed (details encrypted for download)."
+            exit 1
+          }
+          echo "Staging configuration validated without exposing it in public logs."
+
+      - name: Resolve dependencies, test, and compile connected debug APK
+        working-directory: patient
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            set -euo pipefail
+            flutter config --enable-swift-package-manager
+            flutter pub get
+            flutter pub get --enforce-lockfile
+            git diff --exit-code -- pubspec.lock
+            python3 tools/k3_agora_ci_patch.py
+            python3 tools/k3_google_api_headers_ci_patch.py
+            python3 tools/k3_iris_ci_patch.py
+            python3 tools/k3_v1_embedding_scan.py
+            dart run build_runner build --delete-conflicting-outputs
+            python3 tools/k3_rewrite_generated_url.py
+            flutter test --no-pub test/k3_startup_gate_test.dart test/k3_startup_diagnostics_test.dart test/k3_entry_brand_test.dart
+            flutter build apk --debug --target-platform=android-arm64               --dart-define=K3_BUILD_ENV=staging               --dart-define=K3_STARTUP_DIAGNOSTICS=true               --dart-define-from-file="$RUNNER_TEMP/k3-private/k3_staging.json"
+            test -s build/app/outputs/flutter-apk/app-debug.apk
+          ) >> "$RUNNER_TEMP/k3-private/build-log.txt" 2>&1 || {
+            echo "::error::Private Patient staging compilation failed. Download encrypted diagnostics; no source/log fragments printed publicly."
+            exit 1
+          }
+          echo "Connected staging APK compiled (sign-in still requires functioning staging services and a test account)."
+
+      - name: Encrypt APK and diagnostics before upload
+        id: package
+        if: ${{ always() && steps.validate.outcome == 'success' }}
+        shell: bash
+        env:
+          K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/k3-package" "$GITHUB_WORKSPACE/builder/dist"
+          if [ -s "$RUNNER_TEMP/k3-private/build-log.txt" ]; then
+            cp "$RUNNER_TEMP/k3-private/build-log.txt" "$RUNNER_TEMP/k3-package/build-log.txt"
+          fi
+          apk="$GITHUB_WORKSPACE/patient/build/app/outputs/flutter-apk/app-debug.apk"
+          if [ -s "$apk" ]; then
+            cp "$apk" "$RUNNER_TEMP/k3-package/Care360-Patient-STAGING-debug.apk"
+            echo "Connected staging APK included in encrypted bundle."
+          else
+            echo "Compilation incomplete: encrypted diagnostics only."
+          fi
+          printf 'Care360 Patient isolated CONNECTED STAGING debug only\nSource SHA: %s\nNot for production accounts, payments, or clinical use\n' "$SOURCE_SHA" > "$RUNNER_TEMP/k3-package/BUILD-INFO.txt"
+          tar -czf "$RUNNER_TEMP/k3-connected-output.tar.gz" -C "$RUNNER_TEMP/k3-package" .
+          python3 "$GITHUB_WORKSPACE/builder/scripts/k3_artifact_crypto.py" --encrypt             "$RUNNER_TEMP/k3-connected-output.tar.gz"             "$GITHUB_WORKSPACE/builder/dist/Care360-Patient-STAGING-debug.tar.gz.k3enc"
+          rm -rf "$RUNNER_TEMP/k3-package"
+          rm -f "$RUNNER_TEMP/k3-connected-output.tar.gz"
+          echo "Only encrypted data is eligible for the public artifact upload."
+
+      - name: Upload encrypted output ONLY (1 day)
+        if: ${{ always() && steps.package.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Care360-Patient-STAGING-debug-ENCRYPTED
+          path: builder/dist/*.k3enc
+          retention-days: 1
+          if-no-files-found: error
