@@ -1,0 +1,25 @@
+name: Public CI encryption safety check
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/k3_artifact_crypto.py'
+      - 'tests/test_artifact_crypto.py'
+      - '.github/workflows/crypto-safety-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  crypto-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install cryptography
+        run: python3 -m pip install --quiet --disable-pip-version-check --break-system-packages 'cryptography>=44,<48'
+      - name: Test authenticated encryption using synthetic data only
+        run: python3 -m unittest discover -s tests -p 'test_artifact_crypto.py' -v
