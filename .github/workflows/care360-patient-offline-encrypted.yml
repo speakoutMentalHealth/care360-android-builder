@@ -6,7 +6,7 @@ on:
         description: 'Full 40-character commit SHA from the reviewed Care360 Patient PR'
         type: string
         required: true
-        default: '8dd0abb5d29a65dbcfc8b9a0ce6fce5096058e94'
+        default: '5e3b81c0160eee7194409de85a0473c2438451fe'
 
 permissions:
   contents: read
@@ -110,6 +110,8 @@ jobs:
             dart run build_runner build --delete-conflicting-outputs
             python3 tools/k3_rewrite_generated_url.py
             flutter test --no-pub test/k3_startup_gate_test.dart test/k3_startup_diagnostics_test.dart test/k3_entry_brand_test.dart
+            flutter test --no-pub test/k3_offline_dashboard_preview_test.dart
+            flutter test --no-pub --dart-define=K3_OFFLINE_TEST=true test/k3_offline_dashboard_preview_test.dart
           ) > "$RUNNER_TEMP/k3-private-build.log" 2>&1 || {
             echo "::error::Care360 dependency preparation or tests failed. Details will be available only in the encrypted artifact."
             exit 1
