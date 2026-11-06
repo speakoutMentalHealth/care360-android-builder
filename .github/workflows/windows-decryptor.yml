@@ -1,0 +1,86 @@
+name: Portable Windows Care360 decryptor (no Python needed)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/windows-decryptor/**'
+      - '.github/workflows/windows-decryptor.yml'
+      - 'scripts/k3_artifact_crypto.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-decryptor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install public test-fixture encryption dependency
+        shell: bash
+        run: python3 -m pip install --quiet --disable-pip-version-check --break-system-packages 'cryptography>=44,<48'
+
+      - name: Create encrypted test fixture using the actual Care360 Python format
+        shell: bash
+        env:
+          K3_DECRYPT_TEST_PASSWORD: "SYNTHETIC-ONLY-STRONG-TEST-PASSWORD-1234567890-ABCDEF"
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import io, os, tarfile
+          from pathlib import Path
+          from scripts.k3_artifact_crypto import transform
+          plain = b"SYNTHETIC-CLOUD-FIXTURE-ONLY" * 256
+          Path("expected-test-apk.bin").write_bytes(plain)
+          stream = io.BytesIO()
+          with tarfile.open(fileobj=stream, mode="w:gz") as archive:
+              obj = tarfile.TarInfo("./Care360-Patient-OFFLINE-debug.apk")
+              obj.size = len(plain)
+              archive.addfile(obj, io.BytesIO(plain))
+          Path("sample.k3enc").write_bytes(transform(
+              stream.getvalue(),
+              os.environ["K3_DECRYPT_TEST_PASSWORD"],
+              decrypt=False
+          ))
+          print("Synthetic encryption fixture created.")
+          PY
+
+      - name: Verify decryptor interoperability on Linux
+        shell: bash
+        env:
+          K3_DECRYPT_TEST_PASSWORD: "SYNTHETIC-ONLY-STRONG-TEST-PASSWORD-1234567890-ABCDEF"
+        run: |
+          set -euo pipefail
+          dotnet run --project tools/windows-decryptor/Care360Decrypt.csproj \
+            --configuration Release -- sample.k3enc --password-env K3_DECRYPT_TEST_PASSWORD
+          cmp expected-test-apk.bin Care360-Decrypted/Care360-Patient-OFFLINE-debug.apk
+          echo "Cross-language AES-256-GCM + PBKDF2 and archive extraction passed."
+
+      - name: Compile portable Windows x64 executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet publish tools/windows-decryptor/Care360Decrypt.csproj \
+            --configuration Release --runtime win-x64 --self-contained true \
+            -p:PublishSingleFile=true -p:PublishTrimmed=false \
+            --output dist
+          test -s dist/Care360-Decrypt-Windows.exe
+          echo "Self-contained Windows decryptor compiled; no Python installation needed."
+
+      - name: Upload standalone Windows decryptor (no secrets, no private source)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Care360-Decrypt-Windows-No-Python
+          path: dist/Care360-Decrypt-Windows.exe
+          retention-days: 7
+          if-no-files-found: error
