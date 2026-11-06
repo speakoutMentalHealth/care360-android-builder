@@ -38,7 +38,7 @@ The workflow:
 
 After secrets are configured, navigate to [Actions](https://github.com/speakoutMentalHealth/care360-android-builder/actions) → **Care360 Patient synthetic debug - encrypted output** → **Run workflow**.
 
-Default pinned source SHA is `8dd0abb5d29a65dbcfc8b9a0ce6fce5096058e94` (recorded Nov 6, 2026). **This revision includes the Nov 6 fix for the global language switch's Tooltip/Overlay assertion and the sign-in offline network guard; it has not yet passed the new cloud build.** Verify it still corresponds to the desired reviewed [PR #27](https://github.com/Care360Apps/k3-patient/pull/27) commit before running.** The workflow will refuse non-40-character inputs.
+Default pinned source SHA is `4a68463897435261d3341001700f80dc845fc58b` (recorded Nov 6, 2026). This unmerged [Patient PR #27](https://github.com/Care360Apps/k3-patient/pull/27) revision includes an isolated **Preview patient dashboard** link on offline sign-in, a mock-only interior review hub, and normal/sandbox widget tests. It is **not** a connected login and must pass the cloud build and BlueStacks smoke test before any mainline merge. The workflow refuses non-40-character inputs. For a real local test-backend login APK, see [LAN BlueStacks setup](docs/LAN-BLUESTACKS.md).
 
 If compilation succeeds, the one-day run artifact includes `Care360-Patient-OFFLINE-debug.tar.gz.k3enc`, **not a public APK**. If compilation fails, the encrypted bundle will contain diagnostic logs only. No uploaded plain-text build logs or plain APKs are permitted.
 
