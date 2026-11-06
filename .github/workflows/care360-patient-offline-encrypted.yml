@@ -6,7 +6,7 @@ on:
         description: 'Full 40-character commit SHA from the reviewed Care360 Patient PR'
         type: string
         required: true
-        default: '615ceb049609796be76bd3ffee33b8e050b434ca'
+        default: '8dd0abb5d29a65dbcfc8b9a0ce6fce5096058e94'
 
 permissions:
   contents: read
