@@ -1,5 +1,12 @@
 name: Care360 Patient synthetic debug - encrypted output
 on:
+  # One-time, branch-scoped CI trigger for the reviewed offline UI APK.
+  # Never run this public workflow for pull requests from untrusted forks.
+  push:
+    branches:
+      - ci/one-shot-care360-offline-preview-20261106
+    paths:
+      - .github/workflows/care360-patient-offline-encrypted.yml
   workflow_dispatch:
     inputs:
       source_sha:
@@ -25,7 +32,7 @@ jobs:
         id: validate
         shell: bash
         env:
-          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_SHA: ${{ inputs.source_sha || '4a68463897435261d3341001700f80dc845fc58b' }}
           CARE360_SOURCE_READ_TOKEN: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
         run: |
@@ -45,7 +52,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Care360Apps/k3-patient
-          ref: ${{ inputs.source_sha }}
+          ref: ${{ inputs.source_sha || '4a68463897435261d3341001700f80dc845fc58b' }}
           token: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           fetch-depth: 1
           persist-credentials: false
@@ -55,7 +62,7 @@ jobs:
         working-directory: patient
         shell: bash
         env:
-          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_SHA: ${{ inputs.source_sha || '4a68463897435261d3341001700f80dc845fc58b' }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
@@ -141,7 +148,7 @@ jobs:
         shell: bash
         env:
           K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
-          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_SHA: ${{ inputs.source_sha || '4a68463897435261d3341001700f80dc845fc58b' }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/k3-internal" "$GITHUB_WORKSPACE/builder/dist"
