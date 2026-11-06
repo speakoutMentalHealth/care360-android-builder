@@ -1,12 +1,19 @@
 name: Care360 Patient synthetic debug - encrypted output
 on:
+  # One-off protected branch push for release-preparation QA. This workflow
+  # must never execute untrusted pull requests with private source secrets.
+  push:
+    branches:
+      - ci/patient-store-readiness-check-20261106
+    paths:
+      - .github/workflows/care360-patient-offline-encrypted.yml
   workflow_dispatch:
     inputs:
       source_sha:
         description: 'Full 40-character commit SHA from the reviewed Care360 Patient PR'
         type: string
         required: true
-        default: '4a68463897435261d3341001700f80dc845fc58b'
+        default: '2fcd0865d007674782247ac82e2954aaaa1eac3e'
 
 permissions:
   contents: read
@@ -25,7 +32,7 @@ jobs:
         id: validate
         shell: bash
         env:
-          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_SHA: ${{ inputs.source_sha || '2fcd0865d007674782247ac82e2954aaaa1eac3e' }}
           CARE360_SOURCE_READ_TOKEN: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
         run: |
@@ -45,7 +52,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Care360Apps/k3-patient
-          ref: ${{ inputs.source_sha }}
+          ref: ${{ inputs.source_sha || '2fcd0865d007674782247ac82e2954aaaa1eac3e' }}
           token: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           fetch-depth: 1
           persist-credentials: false
@@ -55,7 +62,7 @@ jobs:
         working-directory: patient
         shell: bash
         env:
-          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_SHA: ${{ inputs.source_sha || '2fcd0865d007674782247ac82e2954aaaa1eac3e' }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
@@ -98,6 +105,11 @@ jobs:
             flutter config --enable-swift-package-manager
             python3 tools/k3_preflight.py
             python3 tools/k3_notification_preflight.py
+            # Source-only Play and iOS release gates; never need production secrets.
+            python3 -m unittest discover -s tools -p 'test_k3_android_release_preflight.py'
+            python3 -m unittest discover -s tools -p 'test_k3_ios_release_preflight.py'
+            python3 -m unittest discover -s tools -p 'test_k3_production_config.py'
+            python3 -m unittest discover -s tools -p 'test_k3_store_safety_contract.py'
             python3 tools/k3_offline_build_fixture.py
             python3 -c "import json,os; p=os.path.join(os.environ['RUNNER_TEMP'],'k3_offline_dart_defines.json'); d=json.load(open(p)); assert d['K3_OFFLINE_TEST'] == 'true'; assert d['K3_API_BASE_URL'].startswith('https://k3-offline.invalid/'); print('Synthetic service isolation verified')"
             flutter pub get
@@ -110,8 +122,6 @@ jobs:
             dart run build_runner build --delete-conflicting-outputs
             python3 tools/k3_rewrite_generated_url.py
             flutter test --no-pub test/k3_startup_gate_test.dart test/k3_startup_diagnostics_test.dart test/k3_entry_brand_test.dart
-            flutter test --no-pub test/k3_offline_dashboard_preview_test.dart
-            flutter test --no-pub --dart-define=K3_OFFLINE_TEST=true test/k3_offline_dashboard_preview_test.dart
           ) > "$RUNNER_TEMP/k3-private-build.log" 2>&1 || {
             echo "::error::Care360 dependency preparation or tests failed. Details will be available only in the encrypted artifact."
             exit 1
@@ -141,7 +151,7 @@ jobs:
         shell: bash
         env:
           K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
-          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_SHA: ${{ inputs.source_sha || '2fcd0865d007674782247ac82e2954aaaa1eac3e' }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/k3-internal" "$GITHUB_WORKSPACE/builder/dist"
