@@ -15,12 +15,14 @@ internal static class Program
     {
         "BUILD-INFO.txt",
         "build-log.txt",
-        "Care360-Patient-OFFLINE-debug.apk"
+        "Care360-Patient-OFFLINE-debug.apk",
+        "Care360-Patient-LAN-debug.apk",
+        "Care360-Patient-STAGING-debug.apk"
     };
 
     public static int Main(string[] args)
     {
-        Console.WriteLine("Care360 Patient offline APK decryptor");
+        Console.WriteLine("Care360 Patient encrypted APK decryptor");
         Console.WriteLine("Works without Python, Flutter or Android Studio.");
         Console.WriteLine();
 
@@ -136,8 +138,8 @@ internal static class Program
                 Console.WriteLine("SUCCESS. Extracted to: " + directory);
                 foreach (string name in extracted)
                     Console.WriteLine(" - " + name);
-                if (extracted.Contains("Care360-Patient-OFFLINE-debug.apk"))
-                    Console.WriteLine("APK is ready to install in BlueStacks or on Android (offline test only).");
+                if (extracted.Any(name => name.EndsWith("-debug.apk", StringComparison.Ordinal)))
+                    Console.WriteLine("APK extracted. Check BUILD-INFO.txt before installing: offline, staging and LAN builds have different restrictions.");
                 else
                     Console.WriteLine("This artifact contains diagnostics but no compiled APK.");
                 return 0;
