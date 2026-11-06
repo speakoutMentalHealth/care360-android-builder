@@ -8,6 +8,7 @@ No private build material should be uploaded to public Actions unencrypted.
 from __future__ import annotations
 
 import argparse
+import getpass
 import os
 import sys
 from pathlib import Path
@@ -53,9 +54,14 @@ def main() -> int:
     mode.add_argument("--decrypt", action="store_true")
     parser.add_argument("input", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--prompt-password", action="store_true",
+                        help="Prompt locally for the decryption password without echoing it")
     args = parser.parse_args()
 
-    password = os.environ.get("K3_BUILD_OUTPUT_PASSWORD", "")
+    if args.prompt_password and not args.decrypt:
+        parser.error("--prompt-password is only valid with --decrypt")
+    password = (getpass.getpass("Care360 decryption password: ")
+                if args.prompt_password else os.environ.get("K3_BUILD_OUTPUT_PASSWORD", ""))
     if not password:
         print("Missing K3_BUILD_OUTPUT_PASSWORD environment variable", file=sys.stderr)
         return 2
