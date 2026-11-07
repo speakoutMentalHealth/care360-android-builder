@@ -5,7 +5,7 @@
 This staged follow-up branch builds from the Maps/stable-test-signature builder draft and pins the **private Patient PR #35** integrated source.
 
 - Public builder branch: `feat/patient-integrated-stage-qa-20261107`
-- Pinned reviewed Patient source commit: `c0edb9f1e4bd48f0fed09bdb5998b4b2d7e3417b`
+- Pinned reviewed Patient source commit: `9876cc996e441afb948868b0fd1dfdd3e6d761c7`
 - Private source review: `Care360Apps/k3-patient` PR #35; upstream Nearby Care PR #33 is unmerged.
 - Uses **the same** existing, restricted Maps Android key, staged PKCS12 keystore, test-only Firebase and output-encryption secrets. No new passwords or private keys required.
 - The `backend_ipv4` workflow input has **no default**; enter your laptop's current RFC1918 IPv4 on the trusted test LAN. Start isolated Laravel port 8000 before login. Use **fictional** Patient/Doctor/Provider accounts only.
@@ -31,3 +31,6 @@ This staged follow-up branch builds from the Maps/stable-test-signature builder 
 
 ## Release gates
 CI status alone is not proof that maps, backend ad management, clinical workflows or AI generation function. Backend sponsor admin PR #18 is unmerged; AI backend pilot PR #8 remains disabled. Clinical/privacy and infrastructure blockers remain open. Developer handles production signing and all Play Store uploads. Keep product and SpeakOut finances separately tracked.
+
+### Flutter localization framework compatibility
+The app now provides built-in Material/Widgets/Cupertino English fallback for locales unsupported by Flutter's stock delegates, while preserving Care360's translated labels. This is essential for the Hausa/Igbo/Yoruba language controls; the five-language selector is not proof of complete translation. Native-speaker and clinical terminology review remains required.
