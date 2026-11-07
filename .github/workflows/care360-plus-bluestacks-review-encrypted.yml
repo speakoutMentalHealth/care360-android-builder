@@ -1,0 +1,200 @@
+name: Care360 Plus BlueStacks review - encrypted debug
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: 'Exact approved 40-hex Doctor/Provider source commit SHA'
+        type: string
+        required: true
+        default: 'd9163c87b5b8351ac6114b45872c5ad4bff2c658'
+      mode:
+        description: 'offline: UI only; lan: connected to isolated local Laravel'
+        type: choice
+        required: true
+        options: [offline, lan]
+        default: offline
+      private_ipv4:
+        description: 'LAN mode only: laptop private IPv4 (without port)'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: care360-plus-bluestacks-encrypted
+  cancel-in-progress: false
+
+jobs:
+  plus-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Validate reviewed commit, secret permissions and local-only mode
+        id: prereqs
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          MODE: ${{ inputs.mode }}
+          DOCTOR_SOURCE_TOKEN: ${{ secrets.CARE360_DOCTOR_SOURCE_READ_TOKEN }}
+          ENCRYPTION_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
+          FIREBASE: ${{ secrets.K3_STAGING_ANDROID_FIREBASE_DOCTOR_JSON_B64 }}
+          PROJECT: ${{ vars.K3_STAGING_FIREBASE_PROJECT_ID }}
+          VERIFIED: ${{ vars.K3_LAN_LOCAL_DATA_VERIFIED }}
+          LAN_IP: ${{ inputs.private_ipv4 }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]] || { echo "::error::Reviewed source SHA required."; exit 1; }
+          [[ -n "$DOCTOR_SOURCE_TOKEN" ]] || { echo "::error::Set private Doctor-only read token."; exit 1; }
+          [[ "$ENCRYPTION_PASSWORD" != "" ]] || { echo "::error::Set a strong encrypted-output password."; exit 1; }
+          if [[ "$MODE" == "lan" ]]; then
+            [[ "$VERIFIED" == "true" && -n "$FIREBASE" && -n "$PROJECT" && -n "$LAN_IP" ]] || {
+              echo "::error::Isolated LAN, staging Firebase client and explicit local-data approval are required."; exit 1;
+            }
+          else
+            [[ "$MODE" == "offline" ]] || { echo "::error::Unsupported review mode."; exit 1; }
+          fi
+          echo "Required private inputs configured (no values printed)."
+
+      - name: Checkout public builder
+        uses: actions/checkout@v4
+        with:
+          path: builder
+          persist-credentials: false
+
+      - name: Checkout exact private Doctor/Provider code
+        uses: actions/checkout@v4
+        with:
+          repository: Care360Apps/k3-doctor
+          ref: ${{ inputs.source_sha }}
+          token: ${{ secrets.CARE360_DOCTOR_SOURCE_READ_TOKEN }}
+          fetch-depth: 1
+          persist-credentials: false
+          path: doctor
+
+      - name: Verify commit and safe source preflight
+        working-directory: doctor
+        shell: bash
+        env:
+          EXPECT_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECT_SHA"
+          python3 tools/k3_preflight.py
+          python3 tools/k3_notification_preflight.py
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v6
+
+      - name: Reclaim unused runner space
+        shell: bash
+        run: |
+          for p in /usr/share/dotnet /opt/ghc /usr/local/share/powershell; do
+            if [[ -d "$p" ]]; then sudo rm -rf -- "$p"; fi
+          done
+          df -h /
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Flutter 3.38.3
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.3'
+          channel: stable
+          cache: false
+
+      - name: Install output encryption
+        run: python3 -m pip install --quiet --disable-pip-version-check --break-system-packages 'cryptography>=44,<48'
+
+      - name: Generate isolated debug identity and ephemeral settings
+        working-directory: doctor
+        shell: bash
+        env:
+          MODE: ${{ inputs.mode }}
+          PRIVATE_IP: ${{ inputs.private_ipv4 }}
+          K3_STAGING_FIREBASE_PROJECT_ID: ${{ vars.K3_STAGING_FIREBASE_PROJECT_ID }}
+          FIREBASE: ${{ secrets.K3_STAGING_ANDROID_FIREBASE_DOCTOR_JSON_B64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/plus-private"
+          (
+            if [[ "$MODE" == "offline" ]]; then
+              python3 tools/k3_offline_build_fixture.py
+              cp "$RUNNER_TEMP/k3_offline_dart_defines.json" "$RUNNER_TEMP/plus-private/config.json"
+            else
+              printf '%s' "$FIREBASE" | base64 --decode > android/app/google-services.json
+              chmod 600 android/app/google-services.json
+              python3 tools/k3_lan_build_config.py --ipv4 "$PRIVATE_IP" \
+                --firebase android/app/google-services.json \
+                --out "$RUNNER_TEMP/plus-private/config.json"
+              python3 -m unittest discover -s tools -p 'test_k3_lan_build_config.py'
+            fi
+          ) > "$RUNNER_TEMP/plus-private/diagnostics.log" 2>&1 || {
+            echo "::error::Private review identity could not be verified (encrypted diagnostics only)."; exit 1;
+          }
+          echo "Only nonproduction debug identity configured."
+
+      - name: Generate API bindings, test and compile ARM64
+        working-directory: doctor
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            set -euo pipefail
+            flutter pub get
+            flutter pub get --enforce-lockfile
+            git diff --exit-code -- pubspec.lock
+            dart run build_runner build --delete-conflicting-outputs
+            python3 tools/k3_rewrite_generated_url.py
+            flutter test --no-pub test/professional_availability_contract_test.dart
+            flutter build apk --debug --target-platform=android-arm64 \
+              --dart-define=K3_BUILD_ENV=staging \
+              --dart-define-from-file="$RUNNER_TEMP/plus-private/config.json"
+            test -s build/app/outputs/flutter-apk/app-debug.apk
+          ) >> "$RUNNER_TEMP/plus-private/diagnostics.log" 2>&1 || {
+            echo "::error::Doctor/Provider Flutter test/build failed; inspect encrypted diagnostics."; exit 1;
+          }
+          echo "Doctor/Provider debug APK and source tests completed."
+
+      - name: Encrypt APK and diagnostics (never upload plaintext)
+        if: ${{ always() && steps.prereqs.outcome == 'success' }}
+        id: encrypt
+        shell: bash
+        env:
+          PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
+          MODE: ${{ inputs.mode }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/plus-package" "$GITHUB_WORKSPACE/builder/dist"
+          if [[ -s "$RUNNER_TEMP/plus-private/diagnostics.log" ]]; then
+            cp "$RUNNER_TEMP/plus-private/diagnostics.log" "$RUNNER_TEMP/plus-package/diagnostics.txt"
+          fi
+          if [[ -s "$GITHUB_WORKSPACE/doctor/build/app/outputs/flutter-apk/app-debug.apk" ]]; then
+            cp "$GITHUB_WORKSPACE/doctor/build/app/outputs/flutter-apk/app-debug.apk" \
+              "$RUNNER_TEMP/plus-package/Care360-Plus-debug.apk"
+          fi
+          printf 'Care360 Plus REVIEW ONLY\nSource %s\nMode %s\nNo production/clinical use\n' \
+            "$SOURCE_SHA" "$MODE" > "$RUNNER_TEMP/plus-package/BUILD-INFO.txt"
+          tar -czf "$RUNNER_TEMP/plus-private.tar.gz" -C "$RUNNER_TEMP/plus-package" .
+          K3_BUILD_OUTPUT_PASSWORD="$PASSWORD" python3 \
+            "$GITHUB_WORKSPACE/builder/scripts/k3_artifact_crypto.py" \
+            --encrypt "$RUNNER_TEMP/plus-private.tar.gz" \
+            "$GITHUB_WORKSPACE/builder/dist/Care360-Plus-Review.tar.gz.k3enc"
+          rm -rf "$RUNNER_TEMP/plus-package"
+          rm -f "$RUNNER_TEMP/plus-private.tar.gz"
+          echo "Encrypted review artifact prepared."
+
+      - name: Publish encrypted artifact (one day only)
+        if: ${{ always() && steps.encrypt.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Care360-Plus-BlueStacks-Encrypted
+          path: builder/dist/*.k3enc
+          retention-days: 1
+          if-no-files-found: error
