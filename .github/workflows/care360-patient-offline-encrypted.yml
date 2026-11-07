@@ -13,7 +13,7 @@ on:
         description: 'Full 40-character commit SHA from the reviewed Care360 Patient PR'
         type: string
         required: true
-        default: '2fcd0865d007674782247ac82e2954aaaa1eac3e'
+        default: 'bd8473ddac2a9ecf88e5236787afde9f005207fe'
 
 permissions:
   contents: read
@@ -32,7 +32,7 @@ jobs:
         id: validate
         shell: bash
         env:
-          SOURCE_SHA: ${{ inputs.source_sha || '2fcd0865d007674782247ac82e2954aaaa1eac3e' }}
+          SOURCE_SHA: ${{ inputs.source_sha || 'bd8473ddac2a9ecf88e5236787afde9f005207fe' }}
           CARE360_SOURCE_READ_TOKEN: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
         run: |
@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Care360Apps/k3-patient
-          ref: ${{ inputs.source_sha || '2fcd0865d007674782247ac82e2954aaaa1eac3e' }}
+          ref: ${{ inputs.source_sha || 'bd8473ddac2a9ecf88e5236787afde9f005207fe' }}
           token: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           fetch-depth: 1
           persist-credentials: false
@@ -62,7 +62,7 @@ jobs:
         working-directory: patient
         shell: bash
         env:
-          SOURCE_SHA: ${{ inputs.source_sha || '2fcd0865d007674782247ac82e2954aaaa1eac3e' }}
+          SOURCE_SHA: ${{ inputs.source_sha || 'bd8473ddac2a9ecf88e5236787afde9f005207fe' }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
@@ -110,6 +110,7 @@ jobs:
             python3 -m unittest discover -s tools -p 'test_k3_ios_release_preflight.py'
             python3 -m unittest discover -s tools -p 'test_k3_production_config.py'
             python3 -m unittest discover -s tools -p 'test_k3_store_safety_contract.py'
+            python3 -m unittest discover -s tools -p 'test_k3_android_native_page_alignment.py'
             python3 tools/k3_offline_build_fixture.py
             python3 -c "import json,os; p=os.path.join(os.environ['RUNNER_TEMP'],'k3_offline_dart_defines.json'); d=json.load(open(p)); assert d['K3_OFFLINE_TEST'] == 'true'; assert d['K3_API_BASE_URL'].startswith('https://k3-offline.invalid/'); print('Synthetic service isolation verified')"
             flutter pub get
@@ -138,6 +139,7 @@ jobs:
             flutter build apk --debug --target-platform=android-arm64 \
               --dart-define=K3_BUILD_ENV=staging \
               --dart-define-from-file="$RUNNER_TEMP/k3_offline_dart_defines.json"
+            python3 tools/k3_android_native_page_alignment.py build/app/outputs/flutter-apk/app-debug.apk
           ) >> "$RUNNER_TEMP/k3-private-build.log" 2>&1 || {
             echo "::error::Android compilation failed. Inspect the encrypted diagnostics package; no source snippets are printed publicly."
             exit 1
@@ -151,7 +153,7 @@ jobs:
         shell: bash
         env:
           K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
-          SOURCE_SHA: ${{ inputs.source_sha || '2fcd0865d007674782247ac82e2954aaaa1eac3e' }}
+          SOURCE_SHA: ${{ inputs.source_sha || 'bd8473ddac2a9ecf88e5236787afde9f005207fe' }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/k3-internal" "$GITHUB_WORKSPACE/builder/dist"
