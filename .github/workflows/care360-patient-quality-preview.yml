@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Care360Apps/k3-patient
-          ref: ac9fd9950be1e75e3515dd79e92a44928bbcf25e
+          ref: d2f61486355b97e12de193ba4a1deb6da5671a1d
           token: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           persist-credentials: false
 
@@ -28,7 +28,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "ac9fd9950be1e75e3515dd79e92a44928bbcf25e"
+          test "$(git rev-parse HEAD)" = "d2f61486355b97e12de193ba4a1deb6da5671a1d"
           python3 tools/k3_preflight.py
 
       - name: JDK 17
@@ -48,6 +48,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check --break-system-packages Pillow
+          python3 tools/k3_prepare_launch_brand.py
+          test -s assets/images/care360_splash_brand.png
           flutter pub get
           python3 tools/k3_agora_ci_patch.py
           python3 tools/k3_google_api_headers_ci_patch.py
