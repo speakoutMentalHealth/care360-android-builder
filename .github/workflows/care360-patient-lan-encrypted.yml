@@ -5,7 +5,7 @@ on:
       source_sha:
         description: 'Exact reviewed Patient source commit SHA'
         required: true
-        default: 'c0edb9f1e4bd48f0fed09bdb5998b4b2d7e3417b'
+        default: '9876cc996e441afb948868b0fd1dfdd3e6d761c7'
         type: string
       backend_ipv4:
         description: 'Current laptop private IPv4 running isolated Laravel test API on port 8000'
