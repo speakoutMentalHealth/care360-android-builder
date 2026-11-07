@@ -164,6 +164,14 @@ jobs:
             python3 tools/k3_rewrite_generated_url.py
             flutter test --no-pub test/k3_startup_gate_test.dart test/k3_startup_diagnostics_test.dart test/k3_entry_brand_test.dart
             flutter test --no-pub test/k3_offline_dashboard_preview_test.dart
+            # Run the integrated sponsor, language and AI safety contracts
+            # when present in the reviewed Patient source SHA.
+            if [ -f test/care360_locale_partner_test.dart ]; then
+              flutter test --no-pub test/care360_locale_partner_test.dart
+            fi
+            if [ -f test/care360_language_ai_review_test.dart ]; then
+              flutter test --no-pub test/care360_language_ai_review_test.dart
+            fi
             flutter build apk --debug --target-platform=android-arm64 \
               --dart-define=K3_BUILD_ENV=staging \
               --dart-define-from-file="$RUNNER_TEMP/k3-private/k3_lan_dart_defines.json"
