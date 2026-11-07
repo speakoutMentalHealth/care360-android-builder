@@ -1,0 +1,92 @@
+name: Care360 Backend protected source quality (encrypted diagnostics)
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-synthetic-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Verify separate read-only backend source token
+        shell: bash
+        env:
+          SOURCE_TOKEN: ${{ secrets.CARE360_BACKEND_SOURCE_READ_TOKEN }}
+          OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
+        run: |
+          test -n "$SOURCE_TOKEN" || { echo "::error::Configure backend-only read token"; exit 1; }
+          test "${#OUTPUT_PASSWORD}" -ge 32 || { echo "::error::Encrypted diagnostics password missing"; exit 1; }
+
+      - uses: actions/checkout@v4
+        with:
+          path: builder
+          persist-credentials: false
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Care360Apps/k3-backend
+          ref: 2e2f6ac53d8bd1f305f0805eba74bc31c8542de6
+          token: ${{ secrets.CARE360_BACKEND_SOURCE_READ_TOKEN }}
+          persist-credentials: false
+          path: backend
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_sqlite, xml, curl, openssl, fileinfo
+          tools: composer:v2
+
+      - name: Install encrypted diagnostic support
+        run: python3 -m pip install --quiet --disable-pip-version-check --break-system-packages 'cryptography>=44,<48'
+
+      - name: Run protected backend static tests only
+        id: check
+        working-directory: backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            set -euo pipefail
+            test "$(git rev-parse HEAD)" = '2e2f6ac53d8bd1f305f0805eba74bc31c8542de6'
+            composer validate --no-check-publish
+            find app config database routes tests -type f -name '*.php' -print0 |
+              while IFS= read -r -d '' file; do php -l "$file" >/dev/null || exit 1; done
+            php tools/test_places_gateway_contract.php
+            python3 tools/test_ai_guide_contract.py
+            php tools/test_partner_campaign_contract.php
+            php tools/test_payment_completion_contract.php
+            php tools/test_private_medical_download_contract.php
+            php tools/test_provider_discovery_contract.php
+            php tools/test_nearby_care_presence_contract.php
+            php tools/test_otp_verification.php
+            php tools/test_pharmacy_commission.php
+            php tools/test_doctor_notes_contract.php
+          ) > "$RUNNER_TEMP/backend-qa.log" 2>&1 || {
+            echo "::error::Private backend tests failed; diagnostics will be encrypted."
+            exit 1
+          }
+          echo "Private backend source syntax and safety contracts passed; clinical/hosting staging unverified."
+
+      - name: Encrypt failed diagnostics
+        if: ${{ failure() && steps.check.outcome == 'failure' }}
+        shell: bash
+        env:
+          K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/backend-package" builder/dist
+          cp "$RUNNER_TEMP/backend-qa.log" "$RUNNER_TEMP/backend-package/build-log.txt"
+          printf 'Backend synthetic diagnostics only. No source ZIP, API key or database.\n' > "$RUNNER_TEMP/backend-package/BUILD-INFO.txt"
+          tar -czf "$RUNNER_TEMP/backend-quality.tar.gz" -C "$RUNNER_TEMP/backend-package" .
+          python3 builder/scripts/k3_artifact_crypto.py --encrypt "$RUNNER_TEMP/backend-quality.tar.gz" builder/dist/Care360-Backend-Quality.k3enc
+
+      - name: Upload encrypted diagnostics
+        if: ${{ failure() && steps.check.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Care360-Backend-Quality-ENCRYPTED
+          path: builder/dist/*.k3enc
+          retention-days: 1
+          if-no-files-found: ignore
