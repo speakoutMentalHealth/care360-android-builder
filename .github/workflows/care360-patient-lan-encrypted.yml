@@ -34,6 +34,10 @@ jobs:
           CARE360_SOURCE_READ_TOKEN: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
           FIREBASE_JSON_B64: ${{ secrets.K3_STAGING_ANDROID_FIREBASE_JSON_B64 }}
+          MAPS_KEY: ${{ secrets.K3_STAGING_MAPS_ANDROID_API_KEY }}
+          STAGING_KEYSTORE_B64: ${{ secrets.K3_STAGING_PATIENT_DEBUG_KEYSTORE_B64 }}
+          STAGING_KEYSTORE_PASSWORD: ${{ secrets.K3_STAGING_PATIENT_KEYSTORE_PASSWORD }}
+          STAGING_SIGNING_SHA1: ${{ vars.K3_STAGING_PATIENT_SIGNING_SHA1 }}
           K3_STAGING_FIREBASE_PROJECT_ID: ${{ vars.K3_STAGING_FIREBASE_PROJECT_ID }}
           K3_LAN_LOCAL_DATA_VERIFIED: ${{ vars.K3_LAN_LOCAL_DATA_VERIFIED }}
           K3_LAN_IPV4: ${{ inputs.backend_ipv4 }}
@@ -43,6 +47,7 @@ jobs:
           [[ -n "$CARE360_SOURCE_READ_TOKEN" ]] || { echo "::error::Set private Patient read-only source token."; exit 1; }
           [[ ${#K3_BUILD_OUTPUT_PASSWORD} -ge 32 ]] || { echo "::error::Set 32+ character output encryption password."; exit 1; }
           [[ -n "$FIREBASE_JSON_B64" ]] || { echo "::error::Set staging Android Firebase JSON base64 repository secret."; exit 1; }
+          [[ -n "$MAPS_KEY" && -n "$STAGING_KEYSTORE_B64" && -n "$STAGING_KEYSTORE_PASSWORD" && -n "$STAGING_SIGNING_SHA1" ]] || { echo "::error::Set staging Maps API key, debug signing keystore, password, and approved SHA1."; exit 1; }
           [[ -n "$K3_STAGING_FIREBASE_PROJECT_ID" ]] || { echo "::error::Set approved staging Firebase project ID repository variable."; exit 1; }
           [[ "$K3_LAN_LOCAL_DATA_VERIFIED" == "true" ]] || { echo "::error::Confirm a disposable test-only local Laravel database, then set K3_LAN_LOCAL_DATA_VERIFIED=true."; exit 1; }
           [[ -n "$K3_LAN_IPV4" ]] || { echo "::error::Supply the laptop LAN IPv4."; exit 1; }
@@ -113,6 +118,10 @@ jobs:
           K3_LAN_IPV4: ${{ inputs.backend_ipv4 }}
           K3_STAGING_FIREBASE_PROJECT_ID: ${{ vars.K3_STAGING_FIREBASE_PROJECT_ID }}
           FIREBASE_JSON_B64: ${{ secrets.K3_STAGING_ANDROID_FIREBASE_JSON_B64 }}
+          K3_STAGING_MAPS_ANDROID_API_KEY: ${{ secrets.K3_STAGING_MAPS_ANDROID_API_KEY }}
+          K3_STAGING_PATIENT_DEBUG_KEYSTORE_B64: ${{ secrets.K3_STAGING_PATIENT_DEBUG_KEYSTORE_B64 }}
+          K3_STAGING_PATIENT_KEYSTORE_PASSWORD: ${{ secrets.K3_STAGING_PATIENT_KEYSTORE_PASSWORD }}
+          K3_STAGING_PATIENT_SIGNING_SHA1: ${{ vars.K3_STAGING_PATIENT_SIGNING_SHA1 }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/k3-private"
@@ -125,15 +134,20 @@ jobs:
               --firebase android/app/google-services.json \
               --out "$RUNNER_TEMP/k3-private/k3_lan_dart_defines.json"
             python3 -c "import json,os; from urllib.parse import urlparse; p=os.path.join(os.environ['RUNNER_TEMP'],'k3-private/k3_lan_dart_defines.json'); d=json.load(open(p)); u=urlparse(d['K3_API_BASE_URL']); assert u.scheme == 'http' and u.port == 8000 and u.path == '/api/'; assert d['K3_FIREBASE_PROJECT_ID'] == os.environ['K3_STAGING_FIREBASE_PROJECT_ID']; print('LAN-only API and isolated Firebase confirmed')"
+            python3 "$GITHUB_WORKSPACE/builder/scripts/k3_prepare_patient_maps_signing.py" "$GITHUB_WORKSPACE/patient" "$RUNNER_TEMP/k3-private"
           ) > "$RUNNER_TEMP/k3-private/build-log.txt" 2>&1 || {
-            echo "::error::LAN identity or Firebase config failed. See encrypted diagnostics artifact."
+            echo "::error::LAN identity, staging Maps signing or Firebase config failed. See encrypted diagnostics artifact."
             exit 1
           }
-          echo "Private LAN-only Android debug configuration validated."
+          echo "K3_STAGING_PATIENT_KEYSTORE_PATH=$RUNNER_TEMP/k3-private/care360-patient-staging.p12" >> "$GITHUB_ENV"
+          echo "Private LAN Android debug configuration and staging Maps signing validated."
 
       - name: Compile connected LAN debug APK and test release guard
         working-directory: patient
         shell: bash
+        env:
+          K3_STAGING_MAPS_ANDROID_API_KEY: ${{ secrets.K3_STAGING_MAPS_ANDROID_API_KEY }}
+          K3_STAGING_PATIENT_KEYSTORE_PASSWORD: ${{ secrets.K3_STAGING_PATIENT_KEYSTORE_PASSWORD }}
         run: |
           set -euo pipefail
           (
@@ -150,6 +164,14 @@ jobs:
             python3 tools/k3_rewrite_generated_url.py
             flutter test --no-pub test/k3_startup_gate_test.dart test/k3_startup_diagnostics_test.dart test/k3_entry_brand_test.dart
             flutter test --no-pub test/k3_offline_dashboard_preview_test.dart
+            # Run the integrated sponsor, language and AI safety contracts
+            # when present in the reviewed Patient source SHA.
+            if [ -f test/care360_locale_partner_test.dart ]; then
+              flutter test --no-pub test/care360_locale_partner_test.dart
+            fi
+            if [ -f test/care360_language_ai_review_test.dart ]; then
+              flutter test --no-pub test/care360_language_ai_review_test.dart
+            fi
             flutter build apk --debug --target-platform=android-arm64 \
               --dart-define=K3_BUILD_ENV=staging \
               --dart-define-from-file="$RUNNER_TEMP/k3-private/k3_lan_dart_defines.json"
