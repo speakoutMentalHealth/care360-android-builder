@@ -11,7 +11,7 @@ on:
         description: 'Full 40-character commit SHA from the reviewed Care360 Patient PR'
         type: string
         required: true
-        default: '681465e1ffa079d7ac13938fdc65a07c9b2457c1'
+        default: 'c813ad5236c83c3d97dda964f38e4baf7b8843c8'
 
 permissions:
   contents: read
@@ -30,7 +30,7 @@ jobs:
         id: validate
         shell: bash
         env:
-          SOURCE_SHA: ${{ inputs.source_sha || '681465e1ffa079d7ac13938fdc65a07c9b2457c1' }}
+          SOURCE_SHA: ${{ inputs.source_sha || 'c813ad5236c83c3d97dda964f38e4baf7b8843c8' }}
           CARE360_SOURCE_READ_TOKEN: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
         run: |
@@ -50,7 +50,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Care360Apps/k3-patient
-          ref: ${{ inputs.source_sha || '681465e1ffa079d7ac13938fdc65a07c9b2457c1' }}
+          ref: ${{ inputs.source_sha || 'c813ad5236c83c3d97dda964f38e4baf7b8843c8' }}
           token: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           fetch-depth: 1
           persist-credentials: false
@@ -60,7 +60,7 @@ jobs:
         working-directory: patient
         shell: bash
         env:
-          SOURCE_SHA: ${{ inputs.source_sha || '681465e1ffa079d7ac13938fdc65a07c9b2457c1' }}
+          SOURCE_SHA: ${{ inputs.source_sha || 'c813ad5236c83c3d97dda964f38e4baf7b8843c8' }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
@@ -165,7 +165,7 @@ jobs:
         shell: bash
         env:
           K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
-          SOURCE_SHA: ${{ inputs.source_sha || '681465e1ffa079d7ac13938fdc65a07c9b2457c1' }}
+          SOURCE_SHA: ${{ inputs.source_sha || 'c813ad5236c83c3d97dda964f38e4baf7b8843c8' }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/k3-internal" "$GITHUB_WORKSPACE/builder/dist"
