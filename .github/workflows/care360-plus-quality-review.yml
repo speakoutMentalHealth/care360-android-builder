@@ -1,0 +1,101 @@
+name: Care360 Plus private-source quality (encrypted diagnostics)
+on:
+  push:
+    branches: [feat/patient-integrated-stage-qa-20261107]
+    paths: [.github/workflows/care360-plus-quality-review.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  plus-synthetic-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Verify separate read-only Plus source token
+        shell: bash
+        env:
+          SOURCE_TOKEN: ${{ secrets.CARE360_DOCTOR_SOURCE_READ_TOKEN }}
+          OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
+        run: |
+          test -n "$SOURCE_TOKEN" || { echo "::error::Configure a read-only Plus source token in encrypted secrets"; exit 1; }
+          test "${#OUTPUT_PASSWORD}" -ge 32 || { echo "::error::Encrypted diagnostics password missing"; exit 1; }
+
+      - name: Checkout public builder
+        uses: actions/checkout@v4
+        with:
+          path: builder
+          persist-credentials: false
+
+      - name: Checkout pinned private Plus (no persistent git credentials)
+        uses: actions/checkout@v4
+        with:
+          repository: Care360Apps/k3-doctor
+          ref: 9f99a3e248103c07db354b0a8d90977f7a58f23e
+          token: ${{ secrets.CARE360_DOCTOR_SOURCE_READ_TOKEN }}
+          persist-credentials: false
+          path: plus
+
+      - name: Install Flutter 3.38.3
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.3'
+          channel: stable
+          cache: false
+
+      - name: Prepare encryption library
+        run: python3 -m pip install --quiet --disable-pip-version-check --break-system-packages 'cryptography>=44,<48'
+
+      - name: Execute only synthetic security and Flutter tests
+        id: check
+        working-directory: plus
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/plus-quality.log"
+          (
+            set -euo pipefail
+            test "$(git rev-parse HEAD)" = "9f99a3e248103c07db354b0a8d90977f7a58f23e"
+            python3 tools/k3_preflight.py
+            python3 tools/k3_notification_preflight.py
+            flutter config --enable-swift-package-manager
+            mv ios "$RUNNER_TEMP/plus-ios"
+            flutter pub get
+            mv "$RUNNER_TEMP/plus-ios" ios
+            dart run build_runner build --delete-conflicting-outputs
+            python3 tools/k3_rewrite_generated_url.py
+            flutter test --no-pub \
+              test/care360_plus_language_switch_regression_test.dart \
+              test/k3_professional_role_test.dart \
+              test/professional_availability_contract_test.dart \
+              test/k3_entry_brand_test.dart \
+              test/care360_locale_partner_test.dart \
+              test/k3_clinical_notes_model_test.dart
+          ) > "$output" 2>&1 || {
+            echo "::error::Private Plus synthetic QA failed; encrypted diagnostics only."
+            exit 1
+          }
+          echo "Plus pinned synthetic Flutter tests passed. No clinical/backend or device proof implied."
+
+      - name: Encrypt diagnostic log (failure only)
+        if: ${{ failure() && steps.check.outcome == 'failure' }}
+        shell: bash
+        env:
+          K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/plus-package" builder/dist
+          cp "$RUNNER_TEMP/plus-quality.log" "$RUNNER_TEMP/plus-package/build-log.txt"
+          printf 'Care360 Plus synthetic diagnostics only; no APK or private source included.\n' > "$RUNNER_TEMP/plus-package/BUILD-INFO.txt"
+          tar -czf "$RUNNER_TEMP/plus-quality.tar.gz" -C "$RUNNER_TEMP/plus-package" .
+          python3 builder/scripts/k3_artifact_crypto.py --encrypt "$RUNNER_TEMP/plus-quality.tar.gz" builder/dist/Care360-Plus-Quality.k3enc
+
+      - name: Upload encrypted diagnostics (failure only)
+        if: ${{ failure() && steps.check.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Care360-Plus-Quality-ENCRYPTED
+          path: builder/dist/*.k3enc
+          retention-days: 1
+          if-no-files-found: ignore
