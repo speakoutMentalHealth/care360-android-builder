@@ -5,7 +5,7 @@ on:
       source_sha:
         description: 'Exact reviewed Patient source commit SHA'
         required: true
-        default: 'e8282d0edc12e42ec60e43ad8c617d15e7ee14e4'
+        default: 'd2f61486355b97e12de193ba4a1deb6da5671a1d'
         type: string
       backend_ipv4:
         description: 'Current laptop private IPv4 running isolated Laravel test API on port 8000'
@@ -161,6 +161,10 @@ jobs:
             python3 tools/k3_v1_embedding_scan.py
             dart run build_runner build --delete-conflicting-outputs
             python3 tools/k3_rewrite_generated_url.py
+            # Native splash: use only the actual Care360 master logo.
+            python3 -m pip install --quiet --disable-pip-version-check --break-system-packages Pillow
+            python3 tools/k3_prepare_launch_brand.py
+            dart run flutter_native_splash:create
             flutter test --no-pub test/k3_startup_gate_test.dart test/k3_startup_diagnostics_test.dart test/k3_entry_brand_test.dart
             flutter test --no-pub test/k3_offline_dashboard_preview_test.dart
             # Test integrated real Patient sponsor, guide, African-clinician
@@ -172,7 +176,9 @@ jobs:
               test/care360_language_ai_review_test.dart \
               test/patient_add_address_map_fallback_test.dart \
               test/care360_language_switch_regression_test.dart \
-              test/care360_places_proxy_test.dart
+              test/care360_places_proxy_test.dart \
+              test/care360_workforce_navigation_test.dart \
+              test/care360_first_launch_visual_flow_test.dart
             flutter build apk --debug --target-platform=android-arm64 \
               --dart-define=K3_BUILD_ENV=staging \
               --dart-define-from-file="$RUNNER_TEMP/k3-private/k3_lan_dart_defines.json"
