@@ -39,4 +39,4 @@ Keep the previous isolated test-only database, Firebase and source-token checks 
 
 ## Validation status
 
-The helper was locally exercised with a synthetic PKCS12 keystore and placeholder manifest/Gradle fixture. End-to-end GitHub build and BlueStacks Map tiles **have not yet been tested** on the owner setup. This is a **draft review change**, not production-approval or publisher handover.
+Static source review of the helper and workflow is complete, but the helper has **not yet been exercised with the owner's staging keystore or test build**. End-to-end GitHub build and BlueStacks Map tiles **have not yet been tested** on the owner setup. This is a **draft review change**, not production-approval or publisher handover.
