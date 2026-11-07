@@ -11,7 +11,7 @@ on:
         description: 'Full 40-character commit SHA from the reviewed Care360 Patient PR'
         type: string
         required: true
-        default: 'c813ad5236c83c3d97dda964f38e4baf7b8843c8'
+        default: 'b0d010703373d206a12982240c5c99287465a8c4'
 
 permissions:
   contents: read
@@ -30,7 +30,7 @@ jobs:
         id: validate
         shell: bash
         env:
-          SOURCE_SHA: ${{ inputs.source_sha || 'c813ad5236c83c3d97dda964f38e4baf7b8843c8' }}
+          SOURCE_SHA: ${{ inputs.source_sha || 'b0d010703373d206a12982240c5c99287465a8c4' }}
           CARE360_SOURCE_READ_TOKEN: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
         run: |
@@ -50,7 +50,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Care360Apps/k3-patient
-          ref: ${{ inputs.source_sha || 'c813ad5236c83c3d97dda964f38e4baf7b8843c8' }}
+          ref: ${{ inputs.source_sha || 'b0d010703373d206a12982240c5c99287465a8c4' }}
           token: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           fetch-depth: 1
           persist-credentials: false
@@ -60,7 +60,7 @@ jobs:
         working-directory: patient
         shell: bash
         env:
-          SOURCE_SHA: ${{ inputs.source_sha || 'c813ad5236c83c3d97dda964f38e4baf7b8843c8' }}
+          SOURCE_SHA: ${{ inputs.source_sha || 'b0d010703373d206a12982240c5c99287465a8c4' }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
@@ -115,6 +115,15 @@ jobs:
             }
             echo "PASS: $phase"
           }
+          run_review_probe() {
+            local phase="$1"; shift
+            if "$@" >> "$RUNNER_TEMP/k3-private-build.log" 2>&1; then
+              echo "PASS: $phase"
+            else
+              echo "::warning::Synthetic review test failed: $phase. APK may still compile, but this review is NOT QA-approved."
+              printf '%s\n' "$phase" >> "$RUNNER_TEMP/k3-review-qa-failures"
+            fi
+          }
           run_private flutter-config flutter config --enable-swift-package-manager
           run_private source-preflight python3 tools/k3_preflight.py
           run_private notifications-preflight python3 tools/k3_notification_preflight.py
@@ -138,7 +147,7 @@ jobs:
           run_private synthetic-offline-widget-tests flutter test --no-pub --dart-define=K3_OFFLINE_TEST=true test/k3_offline_dashboard_preview_test.dart
           run_private ai-language-source-contract flutter test --no-pub --plain-name 'Care360 guide only accepts fixed navigation topics, not patient prompts' test/care360_language_ai_review_test.dart
           run_private ai-language-curated-widget flutter test --no-pub --plain-name 'curated Care360 navigation works without any AI connection' test/care360_language_ai_review_test.dart
-          run_private synthetic-ai-language-widget-tests flutter test --no-pub --dart-define=K3_OFFLINE_TEST=true test/care360_language_ai_review_test.dart
+          run_review_probe synthetic-ai-language-widget-tests flutter test --no-pub --dart-define=K3_OFFLINE_TEST=true test/care360_language_ai_review_test.dart
           run_private privacy-performance-source-tests flutter test --no-pub test/patient_home_security_performance_test.dart
           echo "All staged synthetic tests passed with private diagnostics protected."
 
@@ -165,7 +174,7 @@ jobs:
         shell: bash
         env:
           K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
-          SOURCE_SHA: ${{ inputs.source_sha || 'c813ad5236c83c3d97dda964f38e4baf7b8843c8' }}
+          SOURCE_SHA: ${{ inputs.source_sha || 'b0d010703373d206a12982240c5c99287465a8c4' }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/k3-internal" "$GITHUB_WORKSPACE/builder/dist"
@@ -180,6 +189,11 @@ jobs:
             echo "No APK produced; encrypted diagnostics only."
           fi
           printf 'Care360 Patient synthetic OFFLINE debug only\nSource SHA: %s\nNo actual staging or production services\n' "$SOURCE_SHA" > "$RUNNER_TEMP/k3-internal/BUILD-INFO.txt"
+          if [ -s "$RUNNER_TEMP/k3-review-qa-failures" ]; then
+            printf 'REVIEW NOT QA-APPROVED: synthetic widget testing failed. No clinical or production verification.\n' > "$RUNNER_TEMP/k3-internal/QA-STATUS.txt"
+          else
+            printf 'Synthetic widget checks passed; real device/clinical testing still required.\n' > "$RUNNER_TEMP/k3-internal/QA-STATUS.txt"
+          fi
           tar -czf "$RUNNER_TEMP/k3-output.tar.gz" -C "$RUNNER_TEMP/k3-internal" .
           python3 "$GITHUB_WORKSPACE/builder/scripts/k3_artifact_crypto.py" --encrypt \
             "$RUNNER_TEMP/k3-output.tar.gz" \
@@ -196,3 +210,13 @@ jobs:
           path: builder/dist/*.k3enc
           retention-days: 1
           if-no-files-found: error
+
+      - name: Fail release gate if optional synthetic review checks failed
+        if: ${{ always() && steps.package.outcome == 'success' }}
+        shell: bash
+        run: |
+          if [ -s "$RUNNER_TEMP/k3-review-qa-failures" ]; then
+            echo "::error::Review-only APK was encrypted and uploaded, but a synthetic interaction test failed. See encrypted QA status and logs; do not use for release."
+            exit 1
+          fi
+          echo "Synthetic UI review checks passed; separate device testing is still required."
