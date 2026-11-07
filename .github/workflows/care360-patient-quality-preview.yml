@@ -1,9 +1,9 @@
-name: Care360 Patient Android AGP 8.13.2 native configuration gate (no APK)
+name: Care360 Patient experimental AGP 9.0.1 compatibility gate (no APK)
 
 on:
   push:
     branches:
-      - feat/patient-android-8132-native-gate-20261107
+      - spike/patient-agp9-native-gate-20261107
     paths:
       - .github/workflows/care360-patient-quality-preview.yml
   workflow_dispatch:
@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Care360Apps/k3-patient
-          ref: 6874e9715e495fca8f772f2494acc566d3d54044
+          ref: 69565a39a5e460aeb1cc9686d3e167c713c3a2ac
           token: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           persist-credentials: false
 
@@ -28,7 +28,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "6874e9715e495fca8f772f2494acc566d3d54044"
+          test "$(git rev-parse HEAD)" = "69565a39a5e460aeb1cc9686d3e167c713c3a2ac"
           python3 tools/k3_preflight.py
 
       - name: JDK 17
@@ -77,9 +77,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'com.android.application" version "8.13.2"' android/settings.gradle
+          grep -q 'com.android.application" version "9.0.1"' android/settings.gradle
           grep -q 'org.jetbrains.kotlin.android" version "2.3.21"' android/settings.gradle
-          grep -q 'gradle-8.14-' android/gradle/wrapper/gradle-wrapper.properties
+          grep -q 'gradle-9.1.0-' android/gradle/wrapper/gradle-wrapper.properties
+          grep -q 'android.builtInKotlin=false' android/gradle.properties
+          grep -q 'android.newDsl=false' android/gradle.properties
           cd android
           bash ./gradlew help --no-daemon --stacktrace
 
