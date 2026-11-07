@@ -47,7 +47,7 @@ jobs:
           set -euo pipefail
           [[ "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]] || { echo "::error::Reviewed source SHA required."; exit 1; }
           [[ -n "$DOCTOR_SOURCE_TOKEN" ]] || { echo "::error::Set private Doctor-only read token."; exit 1; }
-          [[ "$ENCRYPTION_PASSWORD" != "" ]] || { echo "::error::Set a strong encrypted-output password."; exit 1; }
+          [[ "${#ENCRYPTION_PASSWORD}" -ge 32 ]] || { echo "::error::Set 32+ character encrypted-output password."; exit 1; }
           if [[ "$MODE" == "lan" ]]; then
             [[ "$VERIFIED" == "true" && -n "$FIREBASE" && -n "$PROJECT" && -n "$LAN_IP" ]] || {
               echo "::error::Isolated LAN, staging Firebase client and explicit local-data approval are required."; exit 1;
