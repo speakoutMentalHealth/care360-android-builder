@@ -11,7 +11,7 @@ on:
         description: 'Full 40-character commit SHA from the reviewed Care360 Patient PR'
         type: string
         required: true
-        default: '2b2db08d1e52918dfd23d0ebc25a32ecb0ea14ba'
+        default: 'dd42d5915f9241c85ceb496e2078102b8f3602db'
 
 permissions:
   contents: read
@@ -30,7 +30,7 @@ jobs:
         id: validate
         shell: bash
         env:
-          SOURCE_SHA: ${{ inputs.source_sha || '2b2db08d1e52918dfd23d0ebc25a32ecb0ea14ba' }}
+          SOURCE_SHA: ${{ inputs.source_sha || 'dd42d5915f9241c85ceb496e2078102b8f3602db' }}
           CARE360_SOURCE_READ_TOKEN: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
         run: |
@@ -50,7 +50,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Care360Apps/k3-patient
-          ref: ${{ inputs.source_sha || '2b2db08d1e52918dfd23d0ebc25a32ecb0ea14ba' }}
+          ref: ${{ inputs.source_sha || 'dd42d5915f9241c85ceb496e2078102b8f3602db' }}
           token: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           fetch-depth: 1
           persist-credentials: false
@@ -60,7 +60,7 @@ jobs:
         working-directory: patient
         shell: bash
         env:
-          SOURCE_SHA: ${{ inputs.source_sha || '2b2db08d1e52918dfd23d0ebc25a32ecb0ea14ba' }}
+          SOURCE_SHA: ${{ inputs.source_sha || 'dd42d5915f9241c85ceb496e2078102b8f3602db' }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
@@ -93,37 +93,40 @@ jobs:
         run: |
           python3 -m pip install --quiet --disable-pip-version-check --break-system-packages 'cryptography>=44,<48'
 
-      - name: Prepare synthetic-only APK and run focused Flutter tests
+      - name: Prepare synthetic-only APK and run staged focused Flutter tests
         working-directory: patient
         shell: bash
         run: |
           set -euo pipefail
-          (
-            set -euo pipefail
-            flutter config --enable-swift-package-manager
-            python3 tools/k3_preflight.py
-            python3 tools/k3_notification_preflight.py
-            python3 tools/k3_offline_build_fixture.py
-            python3 -c "import json,os; p=os.path.join(os.environ['RUNNER_TEMP'],'k3_offline_dart_defines.json'); d=json.load(open(p)); assert d['K3_OFFLINE_TEST'] == 'true'; assert d['K3_API_BASE_URL'].startswith('https://k3-offline.invalid/'); print('Synthetic service isolation verified')"
-            flutter pub get
-            flutter pub get --enforce-lockfile
-            git diff --exit-code -- pubspec.lock
-            python3 tools/k3_agora_ci_patch.py
-            python3 tools/k3_google_api_headers_ci_patch.py
-            python3 tools/k3_iris_ci_patch.py
-            python3 tools/k3_v1_embedding_scan.py
-            dart run build_runner build --delete-conflicting-outputs
-            python3 tools/k3_rewrite_generated_url.py
-            flutter test --no-pub test/k3_startup_gate_test.dart test/k3_startup_diagnostics_test.dart test/k3_entry_brand_test.dart
-            flutter test --no-pub test/k3_offline_dashboard_preview_test.dart
-            flutter test --no-pub --dart-define=K3_OFFLINE_TEST=true test/k3_offline_dashboard_preview_test.dart
-            flutter test --no-pub test/care360_language_ai_review_test.dart
-            flutter test --no-pub --dart-define=K3_OFFLINE_TEST=true test/care360_language_ai_review_test.dart
-          ) > "$RUNNER_TEMP/k3-private-build.log" 2>&1 || {
-            echo "::error::Care360 dependency preparation or tests failed. Details will be available only in the encrypted artifact."
-            exit 1
+          # Public runner logs must never expose private source or secrets.
+          # Only fixed test-phase identifiers appear publicly.
+          run_private() {
+            local phase="$1"; shift
+            "$@" >> "$RUNNER_TEMP/k3-private-build.log" 2>&1 || {
+              echo "::error::Private Patient build failed at phase: $phase (details encrypted)."
+              exit 1
+            }
+            echo "PASS: $phase"
           }
-          echo "Synthetic configuration and focused tests passed."
+          run_private flutter-config flutter config --enable-swift-package-manager
+          run_private source-preflight python3 tools/k3_preflight.py
+          run_private notifications-preflight python3 tools/k3_notification_preflight.py
+          run_private synthetic-fixture python3 tools/k3_offline_build_fixture.py
+          run_private flutter-pub-get flutter pub get
+          run_private flutter-lockfile flutter pub get --enforce-lockfile
+          run_private clean-lockfile git diff --exit-code -- pubspec.lock
+          run_private agora-compat-patch python3 tools/k3_agora_ci_patch.py
+          run_private api-headers-compat-patch python3 tools/k3_google_api_headers_ci_patch.py
+          run_private iris-compat-patch python3 tools/k3_iris_ci_patch.py
+          run_private v1-embedding-scan python3 tools/k3_v1_embedding_scan.py
+          run_private retrofit-codegen dart run build_runner build --delete-conflicting-outputs
+          run_private retrofit-env-safety python3 tools/k3_rewrite_generated_url.py
+          run_private startup-widget-tests flutter test --no-pub test/k3_startup_gate_test.dart test/k3_startup_diagnostics_test.dart test/k3_entry_brand_test.dart
+          run_private offline-widget-tests flutter test --no-pub test/k3_offline_dashboard_preview_test.dart
+          run_private synthetic-offline-widget-tests flutter test --no-pub --dart-define=K3_OFFLINE_TEST=true test/k3_offline_dashboard_preview_test.dart
+          run_private ai-language-widget-tests flutter test --no-pub test/care360_language_ai_review_test.dart
+          run_private synthetic-ai-language-widget-tests flutter test --no-pub --dart-define=K3_OFFLINE_TEST=true test/care360_language_ai_review_test.dart
+          echo "All staged synthetic tests passed with private diagnostics protected."
 
       - name: Compile ARM64 Android debug APK
         working-directory: patient
@@ -148,7 +151,7 @@ jobs:
         shell: bash
         env:
           K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
-          SOURCE_SHA: ${{ inputs.source_sha || '2b2db08d1e52918dfd23d0ebc25a32ecb0ea14ba' }}
+          SOURCE_SHA: ${{ inputs.source_sha || 'dd42d5915f9241c85ceb496e2078102b8f3602db' }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/k3-internal" "$GITHUB_WORKSPACE/builder/dist"
