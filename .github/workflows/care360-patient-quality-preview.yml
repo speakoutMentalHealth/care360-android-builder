@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Care360Apps/k3-patient
-          ref: c0edb9f1e4bd48f0fed09bdb5998b4b2d7e3417b
+          ref: 69f1e887848f286a2a03d1d3b89e151ed0fa2686
           token: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           persist-credentials: false
 
@@ -28,7 +28,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "c0edb9f1e4bd48f0fed09bdb5998b4b2d7e3417b"
+          test "$(git rev-parse HEAD)" = "69f1e887848f286a2a03d1d3b89e151ed0fa2686"
           python3 tools/k3_preflight.py
 
       - name: JDK 17
