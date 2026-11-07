@@ -1,0 +1,70 @@
+name: Care360 Patient integrated quality verification (no live services)
+
+on:
+  push:
+    branches:
+      - feat/patient-integrated-stage-qa-20261107
+    paths:
+      - .github/workflows/care360-patient-quality-preview.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-private-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout pinned Patient source (read-only)
+        uses: actions/checkout@v4
+        with:
+          repository: Care360Apps/k3-patient
+          ref: c0edb9f1e4bd48f0fed09bdb5998b4b2d7e3417b
+          token: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
+          persist-credentials: false
+
+      - name: Verify reviewed source and preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "c0edb9f1e4bd48f0fed09bdb5998b4b2d7e3417b"
+          python3 tools/k3_preflight.py
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Flutter 3.38.3
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.3'
+          channel: stable
+          cache: false
+
+      - name: Run synthetic source preparation and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter pub get
+          python3 tools/k3_agora_ci_patch.py
+          python3 tools/k3_google_api_headers_ci_patch.py
+          python3 tools/k3_iris_ci_patch.py
+          python3 tools/k3_v1_embedding_scan.py
+          dart run build_runner build --delete-conflicting-outputs
+          python3 tools/k3_rewrite_generated_url.py
+          flutter test --no-pub \
+            test/k3_entry_brand_test.dart \
+            test/care360_language_switch_regression_test.dart \
+            test/care360_locale_partner_test.dart \
+            test/care360_guide_shortcut_test.dart \
+            test/care360_nearby_care_hero_test.dart \
+            test/patient_add_address_map_fallback_test.dart \
+            test/care360_language_ai_review_test.dart \
+            test/patient_home_security_performance_test.dart
+
+      - name: Report isolated test results
+        if: success()
+        run: echo "Patient UI and localization source tests passed; real Maps, LAN and BlueStacks acceptance remain required."
