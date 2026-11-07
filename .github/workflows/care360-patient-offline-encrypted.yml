@@ -2,7 +2,7 @@ name: Care360 Patient synthetic debug - encrypted output
 on:
   push:
     branches:
-      - ci/patient-on-duty-map-review-20261107
+      - ci/patient-on-duty-owner-preview-final-20261107
     paths:
       - .github/workflows/care360-patient-offline-encrypted.yml
   workflow_dispatch:
@@ -11,7 +11,7 @@ on:
         description: 'Full 40-character commit SHA from the reviewed Care360 Patient PR'
         type: string
         required: true
-        default: 'cd310c72e1bdef03cf8c7eb59dc3ba0d940d8443'
+        default: 'c0aa0522864f83f7a08ee5f0efaaf95c29bce74f'
 
 permissions:
   contents: read
@@ -30,7 +30,7 @@ jobs:
         id: validate
         shell: bash
         env:
-          SOURCE_SHA: ${{ inputs.source_sha || 'cd310c72e1bdef03cf8c7eb59dc3ba0d940d8443' }}
+          SOURCE_SHA: ${{ inputs.source_sha || 'c0aa0522864f83f7a08ee5f0efaaf95c29bce74f' }}
           CARE360_SOURCE_READ_TOKEN: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
         run: |
@@ -50,7 +50,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Care360Apps/k3-patient
-          ref: ${{ inputs.source_sha || 'cd310c72e1bdef03cf8c7eb59dc3ba0d940d8443' }}
+          ref: ${{ inputs.source_sha || 'c0aa0522864f83f7a08ee5f0efaaf95c29bce74f' }}
           token: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           fetch-depth: 1
           persist-credentials: false
@@ -60,7 +60,7 @@ jobs:
         working-directory: patient
         shell: bash
         env:
-          SOURCE_SHA: ${{ inputs.source_sha || 'cd310c72e1bdef03cf8c7eb59dc3ba0d940d8443' }}
+          SOURCE_SHA: ${{ inputs.source_sha || 'c0aa0522864f83f7a08ee5f0efaaf95c29bce74f' }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
@@ -140,6 +140,8 @@ jobs:
           run_private nearby-map-dart-syntax dart format --output=none lib/Screen/Screens/MapView.dart
           run_private on-duty-service-dart-syntax dart format --output=none lib/nearby/nearby_on_duty_service.dart
           run_private on-duty-test-dart-syntax dart format --output=none test/patient_on_duty_nearby_test.dart
+          run_private nearby-preview-dart-syntax dart format --output=none lib/preview/care360_nearby_preview.dart
+          run_private nearby-preview-test-dart-syntax dart format --output=none test/patient_nearby_preview_test.dart
           run_private http-dart-syntax dart format --output=none lib/api/retrofit_Api.dart
           run_private perf-test-dart-syntax dart format --output=none test/patient_home_security_performance_test.dart
           run_private guide-test-dart-syntax dart format --output=none test/care360_language_ai_review_test.dart
@@ -154,6 +156,7 @@ jobs:
           run_private privacy-performance-source-tests flutter test --no-pub test/patient_home_security_performance_test.dart
           run_private nearby-map-source-tests flutter test --no-pub test/patient_nearby_care_map_contract_test.dart
           run_private on-duty-map-widget-tests flutter test --no-pub test/patient_on_duty_nearby_test.dart
+          run_review_probe nearby-preview-widget-tests flutter test --no-pub test/patient_nearby_preview_test.dart
           echo "All staged synthetic tests passed with private diagnostics protected."
 
       - name: Compile ARM64 Android debug APK
@@ -179,7 +182,7 @@ jobs:
         shell: bash
         env:
           K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
-          SOURCE_SHA: ${{ inputs.source_sha || 'cd310c72e1bdef03cf8c7eb59dc3ba0d940d8443' }}
+          SOURCE_SHA: ${{ inputs.source_sha || 'c0aa0522864f83f7a08ee5f0efaaf95c29bce74f' }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/k3-internal" "$GITHUB_WORKSPACE/builder/dist"
