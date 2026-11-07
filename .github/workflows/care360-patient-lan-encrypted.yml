@@ -5,7 +5,7 @@ on:
       source_sha:
         description: 'Exact reviewed Patient source commit SHA'
         required: true
-        default: 'f442959c0666d080a6f5d2a3ceb6e2b7fae2de5d'
+        default: '11870ee4d3d913282b8147f1f08e8b593f06cb53'
         type: string
       backend_ipv4:
         description: 'Current laptop private IPv4 running isolated Laravel test API on port 8000'
@@ -169,7 +169,8 @@ jobs:
               test/care360_locale_partner_test.dart \
               test/care360_guide_shortcut_test.dart \
               test/care360_nearby_care_hero_test.dart \
-              test/care360_language_ai_review_test.dart
+              test/care360_language_ai_review_test.dart \
+              test/patient_add_address_map_fallback_test.dart
             flutter build apk --debug --target-platform=android-arm64 \
               --dart-define=K3_BUILD_ENV=staging \
               --dart-define-from-file="$RUNNER_TEMP/k3-private/k3_lan_dart_defines.json"
