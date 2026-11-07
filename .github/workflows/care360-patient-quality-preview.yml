@@ -81,7 +81,7 @@ jobs:
           grep -q 'org.jetbrains.kotlin.android" version "2.3.21"' android/settings.gradle
           grep -q 'gradle-8.14-' android/gradle/wrapper/gradle-wrapper.properties
           cd android
-          ./gradlew help --no-daemon --stacktrace
+          bash ./gradlew help --no-daemon --stacktrace
 
       - name: Report isolated test results
         if: success()
