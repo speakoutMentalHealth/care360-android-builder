@@ -106,26 +106,9 @@ jobs:
               # Diagnostic tags below are fixed, sanitized class names only:
               # no private source paths, values, file contents or credentials.
               if [[ "$phase" == "retrofit-codegen" ]]; then
-                python3 - "$RUNNER_TEMP/k3-private-build.log" <<'PY'
-import re,sys
-data=open(sys.argv[1],encoding="utf-8",errors="replace").read()
-tags={
-  "Expected to find ';'": "dart-syntax",
-  "Error:": "dart-compile-error",
-  "Could not format": "dart-syntax",
-  "BuilderException": "generator-exception",
-  "not found": "missing-input",
-  "missing": "missing-input",
-  "Failed to build": "generator-failure",
-  "Cannot find": "missing-input",
-  "Undefined name": "undefined-name",
-  "undefined_method": "undefined-method",
-  "invalid_assignment": "assignment-type",
-  "argument_type_not_assignable": "argument-type",
-}
-found=sorted({v for k,v in tags.items() if k.lower() in data.lower()})
-print("Sanitized codegen failure categories: "+(", ".join(found) if found else "unclassified"))
-PY
+                if grep -Eqi 'Could not format|Expected to find|Unexpected token' "$RUNNER_TEMP/k3-private-build.log"; then echo "Diagnostic category: dart-syntax"; fi
+                if grep -Eqi 'Error:|undefined_method|invalid_assignment|argument_type_not_assignable' "$RUNNER_TEMP/k3-private-build.log"; then echo "Diagnostic category: dart-compile"; fi
+                if grep -Eqi 'BuilderException|Failed to build' "$RUNNER_TEMP/k3-private-build.log"; then echo "Diagnostic category: generator-failure"; fi
               fi
               echo "::error::Private Patient build failed at phase: $phase (details encrypted)."
               exit 1
