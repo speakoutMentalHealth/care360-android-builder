@@ -3,7 +3,7 @@ name: Care360 Patient Flutter 3.47.9 upgrade and dashboard gate (no APK)
 on:
   push:
     branches:
-      - feat/patient-flutter-3479-upgrade-gate-20261107
+      - feat/patient-dashboard-route-qa-20261107
     paths:
       - .github/workflows/care360-patient-quality-preview.yml
   workflow_dispatch:
@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Care360Apps/k3-patient
-          ref: 21d03a73cbc1ef423c41edd2daad392e2c5e59fb
+          ref: 46b56a0834292d68572965a4199d904adc5a3561
           token: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           persist-credentials: false
 
@@ -28,7 +28,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "21d03a73cbc1ef423c41edd2daad392e2c5e59fb"
+          test "$(git rev-parse HEAD)" = "46b56a0834292d68572965a4199d904adc5a3561"
           python3 tools/k3_preflight.py
 
       - name: JDK 17
