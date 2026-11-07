@@ -11,7 +11,7 @@ on:
         description: 'Full 40-character commit SHA from the reviewed Care360 Patient PR'
         type: string
         required: true
-        default: '400eeb22c7c30d2224772d101415628081461a59'
+        default: '681465e1ffa079d7ac13938fdc65a07c9b2457c1'
 
 permissions:
   contents: read
@@ -30,7 +30,7 @@ jobs:
         id: validate
         shell: bash
         env:
-          SOURCE_SHA: ${{ inputs.source_sha || '400eeb22c7c30d2224772d101415628081461a59' }}
+          SOURCE_SHA: ${{ inputs.source_sha || '681465e1ffa079d7ac13938fdc65a07c9b2457c1' }}
           CARE360_SOURCE_READ_TOKEN: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
         run: |
@@ -50,7 +50,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Care360Apps/k3-patient
-          ref: ${{ inputs.source_sha || '400eeb22c7c30d2224772d101415628081461a59' }}
+          ref: ${{ inputs.source_sha || '681465e1ffa079d7ac13938fdc65a07c9b2457c1' }}
           token: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           fetch-depth: 1
           persist-credentials: false
@@ -60,7 +60,7 @@ jobs:
         working-directory: patient
         shell: bash
         env:
-          SOURCE_SHA: ${{ inputs.source_sha || '400eeb22c7c30d2224772d101415628081461a59' }}
+          SOURCE_SHA: ${{ inputs.source_sha || '681465e1ffa079d7ac13938fdc65a07c9b2457c1' }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
@@ -129,6 +129,8 @@ jobs:
           run_private home-dart-syntax dart format --output=none lib/Screen/Screens/Home.dart
           run_private guide-dart-syntax dart format --output=none lib/ai/care360_guide_screen.dart
           run_private http-dart-syntax dart format --output=none lib/api/retrofit_Api.dart
+          run_private perf-test-dart-syntax dart format --output=none test/patient_home_security_performance_test.dart
+          run_private guide-test-dart-syntax dart format --output=none test/care360_language_ai_review_test.dart
           run_private retrofit-codegen dart run build_runner build --delete-conflicting-outputs
           run_private retrofit-env-safety python3 tools/k3_rewrite_generated_url.py
           run_private startup-widget-tests flutter test --no-pub test/k3_startup_gate_test.dart test/k3_startup_diagnostics_test.dart test/k3_entry_brand_test.dart
@@ -163,7 +165,7 @@ jobs:
         shell: bash
         env:
           K3_BUILD_OUTPUT_PASSWORD: ${{ secrets.K3_BUILD_OUTPUT_PASSWORD }}
-          SOURCE_SHA: ${{ inputs.source_sha || '400eeb22c7c30d2224772d101415628081461a59' }}
+          SOURCE_SHA: ${{ inputs.source_sha || '681465e1ffa079d7ac13938fdc65a07c9b2457c1' }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/k3-internal" "$GITHUB_WORKSPACE/builder/dist"
