@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Care360Apps/k3-patient
-          ref: d2f61486355b97e12de193ba4a1deb6da5671a1d
+          ref: a075a8d186019811397e54b271a596af634f06f0
           token: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           persist-credentials: false
 
@@ -28,7 +28,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "d2f61486355b97e12de193ba4a1deb6da5671a1d"
+          test "$(git rev-parse HEAD)" = "a075a8d186019811397e54b271a596af634f06f0"
           python3 tools/k3_preflight.py
 
       - name: JDK 17
@@ -69,7 +69,8 @@ jobs:
             test/care360_language_ai_review_test.dart \
             test/patient_home_security_performance_test.dart \
             test/care360_workforce_navigation_test.dart \
-            test/care360_first_launch_visual_flow_test.dart
+            test/care360_first_launch_visual_flow_test.dart \
+            test/care360_patient_auth_visual_review_test.dart
 
       - name: Report isolated test results
         if: success()
