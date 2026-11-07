@@ -1,9 +1,9 @@
-name: Care360 Patient Flutter 3.47.9 upgrade and dashboard gate (no APK)
+name: Care360 Patient Android AGP 8.13.2 native configuration gate (no APK)
 
 on:
   push:
     branches:
-      - feat/patient-flutter-3479-upgrade-gate-20261107
+      - feat/patient-android-8132-native-gate-20261107
     paths:
       - .github/workflows/care360-patient-quality-preview.yml
   workflow_dispatch:
@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Care360Apps/k3-patient
-          ref: 21d03a73cbc1ef423c41edd2daad392e2c5e59fb
+          ref: 6874e9715e495fca8f772f2494acc566d3d54044
           token: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           persist-credentials: false
 
@@ -28,7 +28,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "21d03a73cbc1ef423c41edd2daad392e2c5e59fb"
+          test "$(git rev-parse HEAD)" = "6874e9715e495fca8f772f2494acc566d3d54044"
           python3 tools/k3_preflight.py
 
       - name: JDK 17
@@ -72,6 +72,16 @@ jobs:
             test/care360_first_launch_visual_flow_test.dart \
             test/care360_patient_auth_visual_review_test.dart \
             test/care360_patient_dashboard_visual_test.dart
+
+      - name: Check Android native plugin and Gradle configuration (without assembling APK)
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'com.android.application" version "8.13.2"' android/settings.gradle
+          grep -q 'org.jetbrains.kotlin.android" version "2.3.21"' android/settings.gradle
+          grep -q 'gradle-8.14-' android/gradle/wrapper/gradle-wrapper.properties
+          cd android
+          ./gradlew help --no-daemon --stacktrace
 
       - name: Report isolated test results
         if: success()
