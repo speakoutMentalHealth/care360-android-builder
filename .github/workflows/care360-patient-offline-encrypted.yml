@@ -103,6 +103,30 @@ jobs:
           run_private() {
             local phase="$1"; shift
             "$@" >> "$RUNNER_TEMP/k3-private-build.log" 2>&1 || {
+              # Diagnostic tags below are fixed, sanitized class names only:
+              # no private source paths, values, file contents or credentials.
+              if [[ "$phase" == "retrofit-codegen" ]]; then
+                python3 - "$RUNNER_TEMP/k3-private-build.log" <<'PY'
+import re,sys
+data=open(sys.argv[1],encoding="utf-8",errors="replace").read()
+tags={
+  "Expected to find ';'": "dart-syntax",
+  "Error:": "dart-compile-error",
+  "Could not format": "dart-syntax",
+  "BuilderException": "generator-exception",
+  "not found": "missing-input",
+  "missing": "missing-input",
+  "Failed to build": "generator-failure",
+  "Cannot find": "missing-input",
+  "Undefined name": "undefined-name",
+  "undefined_method": "undefined-method",
+  "invalid_assignment": "assignment-type",
+  "argument_type_not_assignable": "argument-type",
+}
+found=sorted({v for k,v in tags.items() if k.lower() in data.lower()})
+print("Sanitized codegen failure categories: "+(", ".join(found) if found else "unclassified"))
+PY
+              fi
               echo "::error::Private Patient build failed at phase: $phase (details encrypted)."
               exit 1
             }
@@ -119,6 +143,9 @@ jobs:
           run_private api-headers-compat-patch python3 tools/k3_google_api_headers_ci_patch.py
           run_private iris-compat-patch python3 tools/k3_iris_ci_patch.py
           run_private v1-embedding-scan python3 tools/k3_v1_embedding_scan.py
+          run_private home-dart-syntax dart format --output=none lib/Screen/Screens/Home.dart
+          run_private guide-dart-syntax dart format --output=none lib/ai/care360_guide_screen.dart
+          run_private http-dart-syntax dart format --output=none lib/api/retrofit_Api.dart
           run_private retrofit-codegen dart run build_runner build --delete-conflicting-outputs
           run_private retrofit-env-safety python3 tools/k3_rewrite_generated_url.py
           run_private startup-widget-tests flutter test --no-pub test/k3_startup_gate_test.dart test/k3_startup_diagnostics_test.dart test/k3_entry_brand_test.dart
