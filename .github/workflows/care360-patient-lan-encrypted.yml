@@ -5,12 +5,11 @@ on:
       source_sha:
         description: 'Exact reviewed Patient source commit SHA'
         required: true
-        default: '4a68463897435261d3341001700f80dc845fc58b'
+        default: 'e8282d0edc12e42ec60e43ad8c617d15e7ee14e4'
         type: string
       backend_ipv4:
         description: 'Current laptop private IPv4 running isolated Laravel test API on port 8000'
         required: true
-        default: '192.168.0.101'
         type: string
 
 permissions:
@@ -164,14 +163,16 @@ jobs:
             python3 tools/k3_rewrite_generated_url.py
             flutter test --no-pub test/k3_startup_gate_test.dart test/k3_startup_diagnostics_test.dart test/k3_entry_brand_test.dart
             flutter test --no-pub test/k3_offline_dashboard_preview_test.dart
-            # Run the integrated sponsor, language and AI safety contracts
-            # when present in the reviewed Patient source SHA.
-            if [ -f test/care360_locale_partner_test.dart ]; then
-              flutter test --no-pub test/care360_locale_partner_test.dart
-            fi
-            if [ -f test/care360_language_ai_review_test.dart ]; then
-              flutter test --no-pub test/care360_language_ai_review_test.dart
-            fi
+            # Test integrated real Patient sponsor, guide, African-clinician
+            # hero, five-language fallbacks and Nearby Care contracts.
+            flutter test --no-pub \
+              test/care360_locale_partner_test.dart \
+              test/care360_guide_shortcut_test.dart \
+              test/care360_nearby_care_hero_test.dart \
+              test/care360_language_ai_review_test.dart \
+              test/patient_add_address_map_fallback_test.dart \
+              test/care360_language_switch_regression_test.dart \
+              test/care360_places_proxy_test.dart
             flutter build apk --debug --target-platform=android-arm64 \
               --dart-define=K3_BUILD_ENV=staging \
               --dart-define-from-file="$RUNNER_TEMP/k3-private/k3_lan_dart_defines.json"
