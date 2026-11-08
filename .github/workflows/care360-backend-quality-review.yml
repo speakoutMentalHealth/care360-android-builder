@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: Care360Apps/k3-backend
-          ref: 60a38de5015c4285203f9cc1f2943d87a32ded84
+          ref: 3a1d6c4d7055b5e960744c335d2192860bf800f1
           token: ${{ secrets.CARE360_BACKEND_SOURCE_READ_TOKEN }}
           persist-credentials: false
           path: backend
@@ -54,7 +54,7 @@ jobs:
           set -euo pipefail
           (
             set -euo pipefail
-            test "$(git rev-parse HEAD)" = '60a38de5015c4285203f9cc1f2943d87a32ded84'
+            test "$(git rev-parse HEAD)" = '3a1d6c4d7055b5e960744c335d2192860bf800f1'
             composer validate --no-check-publish
             find app config database routes tests -type f -name '*.php' -print0 |
               while IFS= read -r -d '' file; do php -l "$file" >/dev/null || exit 1; done
