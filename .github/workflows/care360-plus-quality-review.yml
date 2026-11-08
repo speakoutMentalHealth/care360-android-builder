@@ -1,7 +1,7 @@
 name: Care360 Plus private-source quality (encrypted diagnostics)
 on:
   push:
-    branches: [feat/patient-integrated-stage-qa-20261107]
+    branches: [feat/care360-private-medical-qa-20261108]
     paths: [.github/workflows/care360-plus-quality-review.yml]
   workflow_dispatch:
 
@@ -32,7 +32,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Care360Apps/k3-doctor
-          ref: 9f99a3e248103c07db354b0a8d90977f7a58f23e
+          ref: e0df95c63f2638c16b39efb5166d9081bea03b0e
           token: ${{ secrets.CARE360_DOCTOR_SOURCE_READ_TOKEN }}
           persist-credentials: false
           path: plus
@@ -56,7 +56,7 @@ jobs:
           output="$RUNNER_TEMP/plus-quality.log"
           (
             set -euo pipefail
-            test "$(git rev-parse HEAD)" = "9f99a3e248103c07db354b0a8d90977f7a58f23e"
+            test "$(git rev-parse HEAD)" = "e0df95c63f2638c16b39efb5166d9081bea03b0e"
             python3 tools/k3_preflight.py
             python3 tools/k3_notification_preflight.py
             flutter config --enable-swift-package-manager
@@ -71,7 +71,12 @@ jobs:
               test/professional_availability_contract_test.dart \
               test/k3_entry_brand_test.dart \
               test/care360_locale_partner_test.dart \
-              test/k3_clinical_notes_model_test.dart
+              test/k3_clinical_notes_model_test.dart \
+              test/care360_plus_first_launch_visual_test.dart \
+              test/care360_plus_dashboard_visual_test.dart \
+              test/care360_plus_service_visual_test.dart \
+              test/care360_plus_prescription_upload_security_test.dart \
+              test/care360_plus_private_medical_pdf_test.dart
           ) > "$output" 2>&1 || {
             echo "::error::Private Plus synthetic QA failed; encrypted diagnostics only."
             exit 1
