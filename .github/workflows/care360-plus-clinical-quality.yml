@@ -1,4 +1,4 @@
-name: Care360 Plus clinical safety QA (manual, no release) (encrypted diagnostics)
+name: Care360 Plus clinical safety QA (manual, encrypted diagnostics)
 on:
   workflow_dispatch:
 
