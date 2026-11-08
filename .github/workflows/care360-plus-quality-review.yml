@@ -1,4 +1,4 @@
-name: Care360 Plus Flutter 3.47.9 clinical UI quality (encrypted diagnostics)
+name: Care360 Plus pinned clinical safety QA (Flutter 3.38.4) (encrypted diagnostics)
 on:
   workflow_dispatch:
 
@@ -29,15 +29,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Care360Apps/k3-doctor
-          ref: dc874cba88596b5ebe8938fab8aca1d7765b00e6
+          ref: 8c42071975c176383f326c20d8781dad3c01312b
           token: ${{ secrets.CARE360_DOCTOR_SOURCE_READ_TOKEN }}
           persist-credentials: false
           path: plus
 
-      - name: Install Flutter 3.47.9
+      - name: Install Flutter 3.38.4
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.9'
+          flutter-version: '3.38.4'
           channel: stable
           cache: false
 
@@ -53,24 +53,42 @@ jobs:
           output="$RUNNER_TEMP/plus-quality.log"
           (
             set -euo pipefail
-            test "$(git rev-parse HEAD)" = "dc874cba88596b5ebe8938fab8aca1d7765b00e6"
+            test "$(git rev-parse HEAD)" = "8c42071975c176383f326c20d8781dad3c01312b"
             python3 tools/k3_preflight.py
             python3 tools/k3_notification_preflight.py
+            python3 tools/test_staging_config.py
+            python3 -m unittest discover -s tools -p 'test_k3_lan_build_config.py'
+            python3 tools/test_k3_android_release_preflight.py
+            python3 tools/test_k3_android_staging_identity.py
+            python3 tools/test_android_credential_hygiene.py
+            python3 tools/test_android_desugaring.py
+            python3 tools/test_agora_token_logging.py
             flutter config --enable-swift-package-manager
             mv ios "$RUNNER_TEMP/plus-ios"
             flutter pub get
             mv "$RUNNER_TEMP/plus-ios" ios
             dart run build_runner build --delete-conflicting-outputs
             python3 tools/k3_rewrite_generated_url.py
+            flutter analyze --no-pub --no-fatal-warnings --no-fatal-infos
             flutter test --no-pub \
-              test/care360_plus_language_switch_regression_test.dart \
+              test/k3_offline_smoke_test.dart \
+              test/k3_startup_gate_test.dart \
+              test/k3_entry_brand_test.dart \
+              test/k3_connection_error_test.dart \
+              test/k3_auth_contract_test.dart \
+              test/care360_locale_partner_test.dart \
+              test/care360_public_access_test.dart \
+              test/k3_clinical_notes_model_test.dart \
               test/k3_professional_role_test.dart \
               test/professional_availability_contract_test.dart \
-              test/k3_entry_brand_test.dart \
-              test/care360_locale_partner_test.dart \
-              test/k3_clinical_notes_model_test.dart \
+              test/care360_brand_test.dart \
               test/care360_plus_first_launch_visual_test.dart \
-              test/care360_plus_dashboard_visual_test.dart
+              test/care360_plus_language_switch_regression_test.dart \
+              test/care360_plus_dashboard_visual_test.dart \
+              test/care360_plus_service_visual_test.dart \
+              test/care360_plus_prescription_upload_security_test.dart \
+              test/care360_plus_private_medical_pdf_test.dart \
+              test/care360_plus_clinical_safety_test.dart
           ) > "$output" 2>&1 || {
             echo "::error::Private Plus synthetic QA failed; encrypted diagnostics only."
             exit 1
