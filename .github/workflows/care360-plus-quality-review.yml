@@ -32,7 +32,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Care360Apps/k3-doctor
-          ref: ba6dbdb6e6f3bc4e5d9f793bc65469ee879d9ea5
+          ref: da9ca9d5287c9d86803c4cdfbfd00c95c73c6539
           token: ${{ secrets.CARE360_DOCTOR_SOURCE_READ_TOKEN }}
           persist-credentials: false
           path: plus
@@ -56,7 +56,7 @@ jobs:
           output="$RUNNER_TEMP/plus-quality.log"
           (
             set -euo pipefail
-            test "$(git rev-parse HEAD)" = "ba6dbdb6e6f3bc4e5d9f793bc65469ee879d9ea5"
+            test "$(git rev-parse HEAD)" = "da9ca9d5287c9d86803c4cdfbfd00c95c73c6539"
             python3 tools/k3_preflight.py
             python3 tools/k3_notification_preflight.py
             flutter config --enable-swift-package-manager
