@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Care360Apps/k3-doctor
-          ref: 8c42071975c176383f326c20d8781dad3c01312b
+          ref: 8b283094af0ed1c01abdd020abfeafd5bfa9936c
           token: ${{ secrets.CARE360_DOCTOR_SOURCE_READ_TOKEN }}
           persist-credentials: false
           path: plus
@@ -53,7 +53,7 @@ jobs:
           output="$RUNNER_TEMP/plus-quality.log"
           (
             set -euo pipefail
-            test "$(git rev-parse HEAD)" = "8c42071975c176383f326c20d8781dad3c01312b"
+            test "$(git rev-parse HEAD)" = "8b283094af0ed1c01abdd020abfeafd5bfa9936c"
             python3 tools/k3_preflight.py
             python3 tools/k3_notification_preflight.py
             python3 tools/test_staging_config.py
