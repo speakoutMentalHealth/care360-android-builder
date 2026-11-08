@@ -3,7 +3,7 @@ name: Care360 Patient integrated quality verification (no live services)
 on:
   push:
     branches:
-      - feat/patient-first-entry-visual-qa-20261107
+      - feat/care360-dashboard-visual-qa-20261108
     paths:
       - .github/workflows/care360-patient-quality-preview.yml
   workflow_dispatch:
@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Care360Apps/k3-patient
-          ref: 8448b3589e8885e906eecd959d971af653fc6704
+          ref: 31a85143fa2b823d4825819f56b10f9b5fb5124c
           token: ${{ secrets.CARE360_SOURCE_READ_TOKEN }}
           persist-credentials: false
 
@@ -28,7 +28,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "8448b3589e8885e906eecd959d971af653fc6704"
+          test "$(git rev-parse HEAD)" = "31a85143fa2b823d4825819f56b10f9b5fb5124c"
           python3 tools/k3_preflight.py
 
       - name: JDK 17
@@ -70,7 +70,8 @@ jobs:
             test/patient_home_security_performance_test.dart \
             test/care360_workforce_navigation_test.dart \
             test/care360_first_launch_visual_flow_test.dart \
-            test/care360_patient_auth_visual_review_test.dart
+            test/care360_patient_auth_visual_review_test.dart \
+            test/care360_patient_dashboard_visual_test.dart
 
       - name: Report isolated test results
         if: success()
